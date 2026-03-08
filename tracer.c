@@ -48,10 +48,27 @@ static void print_regs(struct user_regs_struct regs) {
 }
 int stop_status(int status) {
     if (WIFSTOPPED(status)) {
-        printf("child stopped\n");
-
+        printf("Parent: child stopped\n");
+        return 0;
     }
 
+    return -1;
+}
+
+static bool single_step(pid_t child_pid) {
+    long ret = ptrace(PTRACE_SINGLESTEP, child_pid, NULL, NULL);
+    if (ret == -1) {
+        // kill we received an err
+    }
+    return true;
+}
+
+static bool next_i() {
+
+}
+
+static bool cont() {
+    
 }
 
 int ptrace_init(const char* target_path) {
@@ -67,16 +84,34 @@ int ptrace_init(const char* target_path) {
         int status;
         waitpid(child_pid, &status, 0); // wait for the child to stop
         if (WIFSTOPPED(status)) {
-            printf("Parent: child stopped, starting ptrace operations.\n");
-
-        while(1) {
 
             printf("Parent: Child stoppped, starting ptrace operations.\n");
-            ptrace(PTRACE_SINGLESTEP, child_pid, NULL, NULL);
+
+            while(1) {
+
+
+                int input = getc;
+                puts("");
+                // getline(&line, &size, stdin);
+                switch(input) {
+                    case 's': // single step into inst
+                        single_step(child_pid);
+                        break;
+                    case 'c': // continue to b/end
+                        break;
+                    case 'n': // next instruction
+                        break;
+                    case 'b': // set breakpoint
+                        break;
+                    default:
+                        puts("Error: invalid code"); 
+
+                }
+            }
+
 
         }
 
-        }
 
         ptrace(PTRACE_CONT, child_pid, NULL, NULL); // continue child execution
         wait(NULL); // wait for child to complete
