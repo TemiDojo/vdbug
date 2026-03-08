@@ -12,6 +12,7 @@
 #include <sys/user.h>   // for struct user_regs_struct
 #include <sys/wait.h>   // for waitpid, WSTOPSIG
 #include <unistd.h>     // for fork, pid_t
+#include "tracer.h"
 
 #include <capstone/capstone.h>
 
