@@ -201,6 +201,7 @@ static void display_info(pid_t tracee_pid) {
     
     // display regs
     d_regs(tracee_pid);
+    disas_rip(tracee_pid);
     // TODO: display current breakpoints set;
 
     puts("Enter: [s] - single step instruction; [c] - continue; [b] - set breakpoint;");
