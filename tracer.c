@@ -68,7 +68,54 @@ static bool next_i() {
 }
 
 static bool cont() {
-    
+
+}
+
+static void die(char *s) {
+    puts(s);
+    exit(EXIT_FAILURE);
+}
+
+static long ptrace_or_die(enum __ptrace_request op, pid_t pid, void *addr,
+                          void *data) {
+    long const result = ptrace(op, pid, addr, data);
+    if (result == -1) {
+        die("ptrace failed!");
+    }
+    return result;
+}
+
+static uint64_t read_word(pid_t const pid, uintptr_t const addr) {
+    return ptrace_or_die(PTRACE_PEEKDATA, pid, (void *)addr, NULL);
+}
+
+static csh cs_open_or_die(void) {
+    csh cs_handle;
+    if (cs_open(CS_ARCH_X86, CS_MODE_64, &cs_handle) != CS_ERR_OK) {
+        die("cs_open failed!");
+    }
+    return cs_handle;
+}
+
+static void disas_rip(pid_t pid) {
+    csh cs_handle = cs_open_or_die();
+    struct user_regs_struct regs = {};
+    ptrace_or_die(PTRACE_GETREGS, pid, NULL, &regs);
+
+    uint64_t instruction_buffer[2];
+    instruction_buffer[0] = read_word(pid, regs.rip);
+    instruction_buffer[1] = read_word(pid, regs.rip + 8);
+
+    cs_insn *instructions;
+    size_t count =
+        cs_disasm(cs_handle, (uint8_t *)instruction_buffer,
+                  sizeof(instruction_buffer), regs.rip, 0, &instructions);
+    if (count <= 0) {
+        die("cs_disasm failed!");
+    }
+    printf("rip → %s %s\n", instructions[0].mnemonic, instructions[0].op_str);
+    cs_free(instructions, count);
+    cs_close(&cs_handle);
 }
 
 int ptrace_init(const char* target_path) {
