@@ -156,7 +156,7 @@ static bool single_step(pid_t tracee_pid) {
 
 static void set_breakpoint(pid_t tracee_pid, void *address) {
     struct user_regs_struct regs;
-
+    // TODO: dynamically set breakpoints
     ptrace(PTRACE_POKEUSER, tracee_pid, offsetof(struct user, u_debugreg[0]), address);
 
     unsigned long dr7 = 0x00000002;
@@ -201,7 +201,7 @@ static void display_info(pid_t tracee_pid) {
     
     // display regs
     d_regs(tracee_pid);
-    // display current breakpoints set;
+    // TODO: display current breakpoints set;
 
     puts("Enter: [s] - single step instruction; [c] - continue; [b] - set breakpoint;");
 }
@@ -221,6 +221,8 @@ unsigned long get_base_address(pid_t pid) {
     return base;
 
 }
+
+// TODO: clear breakpoint function
 
 int ptrace_init(const char* target_path) {
     
@@ -256,7 +258,8 @@ int ptrace_init(const char* target_path) {
         }
 
         while(change) {
-
+            
+            // TODO: check
             
             display_info(tracee_pid);
 
