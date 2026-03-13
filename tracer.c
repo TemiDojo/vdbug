@@ -146,7 +146,7 @@ static void display_info(pid_t pid) {
     disas_rip(pid);
     if (breakpoint_addr)
         printf("breakpoints: 0x%012lx\n", breakpoint_addr);
-    puts("Enter: [s] single step | [n] next (step over) | [c] continue | [b] set breakpoint");
+    puts("Enter: [s] single step | [n] next (step over) | [f] finish (step out) | [c] continue | [b] set breakpoint");
 }
 
 
@@ -215,6 +215,14 @@ static bool next_i(pid_t pid) {
     } else {
         return single_step(pid);
     }
+}
+
+static bool step_out(pid_t pid) {
+    struct user_regs_struct regs = {};
+    ptrace_or_die(PTRACE_GETREGS, pid, NULL, &regs);
+    uint64_t return_addr = read_word(pid, regs.rsp);
+    set_breakpoint(pid, (void *)return_addr);
+    return cont(pid);
 }
 
 static void set_breakpoint(pid_t pid, void *address) {
@@ -289,6 +297,10 @@ int ptrace_init(const char *target_path) {
                 case 'n':
                     puts("next");
                     running &= next_i(tracee_pid);
+                    break;
+                case 'f':
+                    puts("finish");
+                    running &= step_out(tracee_pid);
                     break;
                 case 'b': {
                     printf("Enter address: 0x");
