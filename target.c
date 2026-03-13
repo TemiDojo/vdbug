@@ -1,15 +1,19 @@
 #include <stdio.h>
 
-int f();
-
-int main(void) {
-    
-    int x = 0;
-    x= x + f();
-    return x + 20;
+int add(int a, int b) {
+    return a + b;
 }
 
-int f() {
+int multiply(int a, int b) {
+    int result = 0;
+    for (int i = 0; i < b; i++)
+        result = add(result, a);   
+    return result;
+}
 
-    return 20;
+int main(void) {
+    int x = add(3, 4);       
+    int y = multiply(x, 3);  
+    printf("x=%d y=%d\n", x, y);
+    return 0;
 }
