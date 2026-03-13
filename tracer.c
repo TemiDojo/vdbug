@@ -144,7 +144,7 @@ static void display_info(pid_t pid) {
     d_regs(pid);
     disas_rip(pid);
     // TODO: display current breakpoints
-    puts("Enter: [s] single step | [c] continue | [b] set breakpoint");
+    puts("Enter: [s] single step | [n] next (step over) | [c] continue | [b] set breakpoint");
 }
 
 
@@ -178,8 +178,41 @@ static bool cont(pid_t pid) {
     return true;
 }
 
-static bool next_i(pid_t tracee_pid) {
-    return false;
+static bool next_i(pid_t pid) {
+    csh cs_handle = cs_open_or_die();
+
+    struct user_regs_struct regs = {};
+    ptrace_or_die(PTRACE_GETREGS, pid, NULL, &regs);
+
+    uintptr_t start = (regs.rip - 15) & ~(uintptr_t)7;
+    uint64_t buf[5];
+    for (int i = 0; i < 5; i++)
+        buf[i] = read_word(pid, start + i * 8);
+
+    cs_insn *insns;
+    size_t count = cs_disasm(cs_handle, (uint8_t *)buf, sizeof(buf), start, 0, &insns);
+    cs_close(&cs_handle);
+    if (count == 0)
+        die("cs_disasm failed!");
+
+    int idx = -1;
+    for (size_t i = 0; i < count; i++) {
+        if (insns[i].address == regs.rip) {
+            idx = (int)i;
+            break;
+        }
+    }
+
+    bool is_call = idx >= 0 && strcmp(insns[idx].mnemonic, "call") == 0;
+    uint64_t next_addr = idx >= 0 ? insns[idx].address + insns[idx].size : 0;
+    cs_free(insns, count);
+
+    if (is_call) {
+        set_breakpoint(pid, (void *)next_addr);
+        return cont(pid);
+    } else {
+        return single_step(pid);
+    }
 }
 
 static void set_breakpoint(pid_t pid, void *address) {
@@ -250,7 +283,9 @@ int ptrace_init(const char *target_path) {
                     puts("continue");
                     running &= cont(tracee_pid);
                     break;
-                case 'n': // TODO: next instruction (step over)
+                case 'n':
+                    puts("next");
+                    running &= next_i(tracee_pid);
                     break;
                 case 'b': {
                     printf("Enter address: 0x");
