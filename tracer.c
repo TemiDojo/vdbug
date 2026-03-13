@@ -81,19 +81,32 @@ static void disas_rip(pid_t pid) {
     struct user_regs_struct regs = {};
     ptrace_or_die(PTRACE_GETREGS, pid, NULL, &regs);
 
-    uint64_t instruction_buffer[2];
-    instruction_buffer[0] = read_word(pid, regs.rip);
-    instruction_buffer[1] = read_word(pid, regs.rip + 8);
+    uintptr_t start = (regs.rip - 15) & ~(uintptr_t)7;
+    uint64_t buf[5];
+    for (int i = 0; i < 5; i++)
+        buf[i] = read_word(pid, start + i * 8);
 
-    cs_insn *instructions;
-    size_t count =
-        cs_disasm(cs_handle, (uint8_t *)instruction_buffer,
-                  sizeof(instruction_buffer), regs.rip, 0, &instructions);
-    if (count <= 0) {
+    cs_insn *insns;
+    size_t count = cs_disasm(cs_handle, (uint8_t *)buf, sizeof(buf), start, 0, &insns);
+    if (count <= 0)
         die("cs_disasm failed!");
+
+    int idx = -1;
+    for (size_t i = 0; i < count; i++) {
+        if (insns[i].address == regs.rip) {
+            idx = (int)i;
+            break;
+        }
     }
-    printf("rip → %s %s\n", instructions[0].mnemonic, instructions[0].op_str);
-    cs_free(instructions, count);
+
+    if (idx > 0)
+        printf("  prev  %s %s\n", insns[idx-1].mnemonic, insns[idx-1].op_str);
+    if (idx >= 0)
+        printf("→ curr  %s %s\n", insns[idx].mnemonic, insns[idx].op_str);
+    if (idx >= 0 && idx + 1 < (int)count)
+        printf("  next  %s %s\n", insns[idx+1].mnemonic, insns[idx+1].op_str);
+
+    cs_free(insns, count);
     cs_close(&cs_handle);
 }
 
