@@ -1,29 +1,64 @@
-#include <elf.h>    // for Elf64_Shdr, Elf64_Section
-#include <fcntl.h>  // for open, O_RDONLY
-#include <gelf.h>   // for GElf_Sym, gelf_getsym
-#include <libelf.h> // for elf_version, elf_begin, elf_getscn, elf_nextscn, Elf, Elf_Scn, elf64_getshdr, Elf_Data, elf_getdata
-#include <limits.h> // for CHAR_BIT
-#include <signal.h> // for SIG*
-#include <stdint.h> // for uint*_t
-#include <stdio.h>  // for puts, printf, getline
-#include <stdlib.h> // for exit, EXIT_FAILURE, NULL
-#include <string.h> // for memcpy
+#include <elf.h>        // for Elf64_Shdr, Elf64_Section
+#include <fcntl.h>      // for open, O_RDONLY
+#include <gelf.h>       // for GElf_Sym, gelf_getsym
+#include <libelf.h>     // for elf_version, elf_begin, elf_getscn, elf_nextscn
+#include <limits.h>     // for CHAR_BIT
+#include <signal.h>     // for SIG*
+#include <stdint.h>     // for uint*_t
+#include <stdio.h>      // for puts, printf, getline
+#include <stdlib.h>     // for exit, EXIT_FAILURE, NULL
+#include <string.h>     // for memcpy
+#include <stddef.h>
+#include <errno.h>
+#include <unistd.h>     // for fork, pid_t
 #include <sys/ptrace.h> // for ptrace, PTRACE_*
 #include <sys/user.h>   // for struct user_regs_struct
 #include <sys/wait.h>   // for waitpid, WSTOPSIG
-#include <unistd.h>     // for fork, pid_t
-#include <errno.h>
-#include <stddef.h>
+#include <capstone/capstone.h>
 #include "tracer.h"
 #include "dwarf/dl_parser.h"
 
-#include <capstone/capstone.h>
-
-#define BOX_TOP "╔══════════════════════════════╗"
-#define BOX_SIDE "║"
+#define BOX_TOP     "╔══════════════════════════════╗"
+#define BOX_SIDE    "║"
 #define BOX_DIVIDER "╠══════════════════════════════╣"
-#define BOX_BOTTOM "╚══════════════════════════════╝"
+#define BOX_BOTTOM  "╚══════════════════════════════╝"
 #define CLEAR_SCREEN "\x1b[1;1H\x1b[2J"
+
+
+static void die(char *s) {
+    puts(s);
+    exit(EXIT_FAILURE);
+}
+
+static void err_check(void) {
+    switch (errno) {
+        case EBUSY:  die("ptrace: EBUSY");
+        case EFAULT: die("ptrace: EFAULT");
+        case EINVAL: die("ptrace: EINVAL");
+        case EIO:    die("ptrace: EIO");
+        case EPERM:  die("ptrace: EPERM");
+        case ESRCH:  die("ptrace: ESRCH");
+        default:     die("ptrace: unknown error");
+    }
+}
+
+static long ptrace_or_die(enum __ptrace_request op, pid_t pid, void *addr, void *data) {
+    long result = ptrace(op, pid, addr, data);
+    if (result == -1)
+        die("ptrace failed!");
+    return result;
+}
+
+static uint64_t read_word(pid_t pid, uintptr_t addr) {
+    return ptrace_or_die(PTRACE_PEEKDATA, pid, (void *)addr, NULL);
+}
+
+static int check_child_ret(pid_t pid) {
+    int wstatus;
+    if (waitpid(pid, &wstatus, 0) != pid)
+        die("waitpid failed");
+    return wstatus;
+}
 
 
 static void print_regs(struct user_regs_struct regs) {
@@ -49,35 +84,17 @@ static void print_regs(struct user_regs_struct regs) {
     puts(BOX_BOTTOM);
     puts("");
 }
-static void die(char *s) {
-    puts(s);
-    exit(EXIT_FAILURE);
-}
-
-
-static long ptrace_or_die(enum __ptrace_request op, pid_t pid, void *addr,
-                          void *data) {
-    long const result = ptrace(op, pid, addr, data);
-    if (result == -1) {
-        die("ptrace failed!");
-    }
-    return result;
-}
-
-static uint64_t read_word(pid_t const pid, uintptr_t const addr) {
-    return ptrace_or_die(PTRACE_PEEKDATA, pid, (void *)addr, NULL);
-}
 
 static csh cs_open_or_die(void) {
-    csh cs_handle;
-    if (cs_open(CS_ARCH_X86, CS_MODE_64, &cs_handle) != CS_ERR_OK) {
+    csh handle;
+    if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK)
         die("cs_open failed!");
-    }
-    return cs_handle;
+    return handle;
 }
 
 static void disas_rip(pid_t pid) {
     csh cs_handle = cs_open_or_die();
+
     struct user_regs_struct regs = {};
     ptrace_or_die(PTRACE_GETREGS, pid, NULL, &regs);
 
@@ -88,7 +105,7 @@ static void disas_rip(pid_t pid) {
 
     cs_insn *insns;
     size_t count = cs_disasm(cs_handle, (uint8_t *)buf, sizeof(buf), start, 0, &insns);
-    if (count <= 0)
+    if (count == 0)
         die("cs_disasm failed!");
 
     int idx = -1;
@@ -99,133 +116,86 @@ static void disas_rip(pid_t pid) {
         }
     }
 
+    puts("──────────────────────────────────");
     if (idx > 0)
-        printf("  prev  %s %s\n", insns[idx-1].mnemonic, insns[idx-1].op_str);
+        printf("     0x%012llx  %-8s %s\n",
+               insns[idx-1].address, insns[idx-1].mnemonic, insns[idx-1].op_str);
     if (idx >= 0)
-        printf("→ curr  %s %s\n", insns[idx].mnemonic, insns[idx].op_str);
+        printf(" ──► 0x%012llx  %-8s %s\n",
+               insns[idx].address,   insns[idx].mnemonic,   insns[idx].op_str);
     if (idx >= 0 && idx + 1 < (int)count)
-        printf("  next  %s %s\n", insns[idx+1].mnemonic, insns[idx+1].op_str);
+        printf("     0x%012llx  %-8s %s\n",
+               insns[idx+1].address, insns[idx+1].mnemonic, insns[idx+1].op_str);
+    puts("──────────────────────────────────");
 
     cs_free(insns, count);
     cs_close(&cs_handle);
 }
 
-static void err_check() {
-    switch(errno) {
-        case EBUSY:
-            die("ptrace: errno - EBUSY");
-            break;
-        case EFAULT:
-            die("ptrace: errno - EFAULT");
-            break;
-        case EINVAL:
-            die("ptrace: errno - EINVAL");
-            break;
-        case EIO:
-            die("ptrace: errno - EIO");
-            break;
-        case EPERM:
-            die("ptrace: errno - EPERM");
-            break;
-        case ESRCH:
-            die("ptrace: errno - ESRCH");
-            break;
-        default:
-            die("unkown error # from ptrace");
-    }
-}
-
-static int check_child_ret(pid_t tracee_pid) {
-    int wstatus;
-    if (waitpid(tracee_pid, &wstatus, 0) != tracee_pid) {
-        // waitpid failed
-        die("waitpid failed");
-    }
-
-    return wstatus;
-}
-
-static bool single_step(pid_t tracee_pid) {
-
-    int wstatus;
-    long ret = ptrace(PTRACE_SINGLESTEP, tracee_pid, NULL, NULL);
-    wstatus = check_child_ret(tracee_pid);
-
-    if (ret == -1) {
+static void d_regs(pid_t pid) {
+    struct user_regs_struct regs = {};
+    if (ptrace(PTRACE_GETREGS, pid, NULL, &regs) == -1)
         err_check();
-    }
+    print_regs(regs);
+}
 
-    if (WIFEXITED(wstatus)) { // if the child terminated
+static void display_info(pid_t pid) {
+    printf("%s", CLEAR_SCREEN);
+    d_regs(pid);
+    disas_rip(pid);
+    // TODO: display current breakpoints
+    puts("Enter: [s] single step | [c] continue | [b] set breakpoint");
+}
+
+
+static bool single_step(pid_t pid) {
+    long ret = ptrace(PTRACE_SINGLESTEP, pid, NULL, NULL);
+    int wstatus = check_child_ret(pid);
+
+    if (ret == -1)
+        err_check();
+    if (WIFEXITED(wstatus)) {
         puts("Tracee exited.");
         return false;
-
-    } else if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) == SIGTRAP) { // if tracee was stopped by signal delivery
-        puts("Tracee stopped.");
-        return true;
     }
-
+    if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) == SIGTRAP)
+        puts("Tracee stopped.");
     return true;
 }
 
-static void set_breakpoint(pid_t tracee_pid, void *address) {
-    struct user_regs_struct regs;
-    // TODO: dynamically set breakpoints
-    ptrace(PTRACE_POKEUSER, tracee_pid, offsetof(struct user, u_debugreg[0]), address);
+static bool cont(pid_t pid) {
+    long ret = ptrace(PTRACE_CONT, pid, NULL, NULL);
+    int wstatus = check_child_ret(pid);
 
-    unsigned long dr7 = 0x00000002;
-    
-    ptrace(PTRACE_POKEUSER, tracee_pid, offsetof(struct user, u_debugreg[7]), dr7);
-
-
+    if (ret == -1)
+        err_check();
+    if (WIFEXITED(wstatus)) {
+        puts("Tracee exited.");
+        return false;
+    }
+    if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) == SIGTRAP)
+        puts("Tracee stopped.");
+    return true;
 }
 
 static bool next_i(pid_t tracee_pid) {
     return false;
 }
 
-static bool cont(pid_t tracee_pid) {
-    int wstatus;
-    long ret = ptrace(PTRACE_CONT, tracee_pid, NULL, NULL);
-    wstatus = check_child_ret(tracee_pid);
-    if (ret == -1) {
-        err_check();
-    }
-    if (WIFEXITED(wstatus)) {
-        puts("Tracee exited.");
-        return false;
-    } else if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) == SIGTRAP) {
-        puts("Tracee stopped.");
-        return true;
-    }
-    return true; 
+static void set_breakpoint(pid_t pid, void *address) {
+    struct user_regs_struct regs;
+    // TODO: dynamically set breakpoints
+    ptrace(PTRACE_POKEUSER, pid, offsetof(struct user, u_debugreg[0]), address);
+    ptrace(PTRACE_POKEUSER, pid, offsetof(struct user, u_debugreg[7]), (void *)0x00000002UL);
 }
 
-static void d_regs(pid_t tracee_pid) {
-    struct user_regs_struct regs = {};
-    long ret = ptrace(PTRACE_GETREGS, tracee_pid, NULL, &regs);
-    if (ret == -1) {
-        err_check();
-    }
-    print_regs(regs);
-}
-
-static void display_info(pid_t tracee_pid) {
-    printf("%s", CLEAR_SCREEN);
-    
-    // display regs
-    d_regs(tracee_pid);
-    disas_rip(tracee_pid);
-    // TODO: display current breakpoints set;
-
-    puts("Enter: [s] - single step instruction; [c] - continue; [b] - set breakpoint;");
-}
 
 unsigned long get_base_address(pid_t pid) {
     char path[256];
     sprintf(path, "/proc/%d/maps", pid);
     FILE *f = fopen(path, "r");
-    if (f == NULL) {
-        puts("Failed to open /proc/pid/map");
+    if (!f) {
+        puts("Failed to open /proc/pid/maps");
         return 0;
     }
     unsigned long base = 0;
@@ -233,107 +203,84 @@ unsigned long get_base_address(pid_t pid) {
     printf("base: %lx\n", base);
     fclose(f);
     return base;
-
 }
+
 
 // TODO: clear breakpoint function
 
-int ptrace_init(const char* target_path) {
-    
-
-
-
+int ptrace_init(const char *target_path) {
     pid_t tracee_pid = fork();
+
     if (tracee_pid == 0) {
-        // child process: run the target program
+        // child: become the tracee
         puts("Child: Tracing this process.\n");
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
         execl(target_path, target_path, NULL);
-
-    } else {
-        // Parent process: Attach and control the child
-        unsigned long offset = (unsigned long)get_first_func_address(target_path); 
-
-        printf("checking :%lx\n", offset);
-        int status;
-        bool change = true;
-        waitpid(tracee_pid, &status, 0); // wait for the child to stop
-        if (WIFSTOPPED(status)) {
-
-            printf("Parent: Child stoppped, starting ptrace operations.\n");
-
-        }
-
-        unsigned long base = get_base_address(tracee_pid);
-        if (base != 0) { 
-            unsigned long target_addr = base + offset;
-            // set breakpoint at main -> main has to be first function
-            set_breakpoint(tracee_pid, (void*)target_addr);
-        }
-
-        while(change) {
-            
-            // TODO: check
-            
-            display_info(tracee_pid);
-
-
-            char *line = NULL;
-            size_t size = 0;
-            ssize_t nread;
-            nread = getdelim(&line, &size, '\n', stdin);
-
-            if (nread == 2) {
-                int input = line[0];
-                switch(input) {
-                    case 's': // single step into inst
-                        puts("step");
-                        change &= single_step(tracee_pid);
-                        break;
-                    case 'c': // continue to breakpoint/end
-                        puts("continue");
-                        change &= cont(tracee_pid);
-                        break;
-                    case 'n': // next instruction
-                        break;
-                    case 'b': // set breakpoint
-                        printf("Enter address: 0x");
-                        nread = getline(&line, &size, stdin);
-                        char *endptr;
-                        unsigned long addy = strtoul(line, &endptr, 16);
-                        // TODO: check if the address is a valid address
-                        printf("set breakpoint at: %lx", addy);
-                        set_breakpoint(tracee_pid, (void*)addy);
-                        break;
-                    default:
-                        puts("Error: invalid code"); 
-
-                }
-            } else {
-                puts("invalid command");
-            }
-            fflush(stdout);
-            free(line);
-        }
-
-        printf("Parent: Child process has exited.\n");
+        die("execl failed");
     }
-        
 
+    // parent: control the child
+    unsigned long offset = (unsigned long)get_first_func_address(target_path);
+    printf("checking :%lx\n", offset);
+
+    int status;
+    waitpid(tracee_pid, &status, 0);
+    if (WIFSTOPPED(status))
+        printf("Parent: Child stoppped, starting ptrace operations.\n");
+
+    unsigned long base = get_base_address(tracee_pid);
+    if (base != 0)
+        set_breakpoint(tracee_pid, (void *)(base + offset));
+
+    bool running = true;
+    while (running) {
+        display_info(tracee_pid);
+
+        char *line = NULL;
+        size_t size = 0;
+        ssize_t nread = getdelim(&line, &size, '\n', stdin);
+
+        if (nread == 2) {
+            switch (line[0]) {
+                case 's':
+                    puts("step");
+                    running &= single_step(tracee_pid);
+                    break;
+                case 'c':
+                    puts("continue");
+                    running &= cont(tracee_pid);
+                    break;
+                case 'n': // TODO: next instruction (step over)
+                    break;
+                case 'b': {
+                    printf("Enter address: 0x");
+                    nread = getline(&line, &size, stdin);
+                    char *endptr;
+                    unsigned long addr = strtoul(line, &endptr, 16);
+                    printf("set breakpoint at: 0x%lx\n", addr);
+                    set_breakpoint(tracee_pid, (void *)addr);
+                    break;
+                }
+                default:
+                    puts("Error: unknown command");
+            }
+        } else {
+            puts("invalid command");
+        }
+
+        fflush(stdout);
+        free(line);
+    }
+
+    puts("Parent: child process has exited.");
     return 0;
 }
 
-
-int main(int argc, char** argv) {
-
-    if (argc <=1 ) {
-        printf("Error: \n");
+int main(int argc, char **argv) {
+    if (argc <= 1) {
+        puts("Usage: ptracer <target>");
         return -1;
     }
-
-
-    const char* target_path = argv[1];
-    ptrace_init(target_path);
-
-
+    ptrace_init(argv[1]);
+    return 0;
 }
