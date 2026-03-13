@@ -24,6 +24,7 @@
 #define BOX_BOTTOM  "╚══════════════════════════════╝"
 #define CLEAR_SCREEN "\x1b[1;1H\x1b[2J"
 
+static uintptr_t breakpoint_addr = 0;
 
 static void die(char *s) {
     puts(s);
@@ -143,7 +144,8 @@ static void display_info(pid_t pid) {
     printf("%s", CLEAR_SCREEN);
     d_regs(pid);
     disas_rip(pid);
-    // TODO: display current breakpoints
+    if (breakpoint_addr)
+        printf("breakpoints: 0x%012lx\n", breakpoint_addr);
     puts("Enter: [s] single step | [n] next (step over) | [c] continue | [b] set breakpoint");
 }
 
@@ -220,6 +222,7 @@ static void set_breakpoint(pid_t pid, void *address) {
     // TODO: dynamically set breakpoints
     ptrace(PTRACE_POKEUSER, pid, offsetof(struct user, u_debugreg[0]), address);
     ptrace(PTRACE_POKEUSER, pid, offsetof(struct user, u_debugreg[7]), (void *)0x00000002UL);
+    breakpoint_addr = (uintptr_t)address;
 }
 
 
