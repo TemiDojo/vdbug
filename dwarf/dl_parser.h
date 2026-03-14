@@ -59,7 +59,7 @@ typedef struct{
 
 
 Ret debug_init(const char *file_path);
-uint64_t get_first_func_address(char *filepath);
+uint64_t get_first_func_address(const char *filepath);
 int dump_dl(char *filepath);
 uint64_t decode_uleb128(uint8_t **ptr);
 int64_t decode_sleb128(uint8_t **ptr);

@@ -19,7 +19,7 @@
 #define DW_FORM_string 0x08 // string
 
 Ret debug_init(const char *file_path);
-uint64_t get_first_func_address(char *filepath);
+uint64_t get_first_func_address(const char *filepath);
 int dump_dl(char *filepath);
 uint64_t decode_uleb128(uint8_t **ptr);
 int64_t decode_sleb128(uint8_t **ptr);
@@ -27,7 +27,7 @@ void initialize_default_state(ProgramRegisterState **state_arr);
 void append_row_matrix(ProgramRegisterState **state_arr, int row_index);
 Elf64_Shdr * get_section(Elf64_Shdr **shdr_array, uint16_t sh_num, const char * cmp, char *str_tab); 
 
-uint64_t get_first_func_address(char *filepath) {
+uint64_t get_first_func_address(const char *filepath) {
     Ret r = debug_init(filepath);
 
     void *start = r.start;
@@ -53,7 +53,7 @@ uint64_t get_first_func_address(char *filepath) {
     int op_advance;
     uint64_t address_inc;
 
-    uint64_t line_offset = (void *)ptr1 - start;
+    uint64_t line_offset = (char *)ptr1 - (char *)start;
 
     // printf("\n\n");
     bool flag = false;
@@ -95,10 +95,10 @@ uint64_t get_first_func_address(char *filepath) {
 
                     printf("DW_LNS_set_column: %d\n", *curr);
                     uint64_t col_val = decode_uleb128(&ptr1);
-                    printf("Checking: %d\n", col_val);
+                    printf("Checking: %lu\n", col_val);
                     line_offset = line_offset + (ptr1 - curr);
                     state_arr[0].column = col_val;
-                    printf("%x DW_LNS_SET_column (%d)\n", DW_LNS_set_column, col_val);
+                    printf("%x DW_LNS_SET_column (%lu)\n", DW_LNS_set_column, col_val);
                     break;
                 default:
                     break;
@@ -140,7 +140,7 @@ int dump_dl(char *filepath) {
     int op_advance;
     uint64_t address_inc;
 
-    uint64_t line_offset = (void *)ptr1 - start;
+    uint64_t line_offset = (char *)ptr1 - (char *)start;
 
     printf("\n\n");
 
@@ -163,9 +163,9 @@ int dump_dl(char *filepath) {
                     //printf("Appending to row/ End sequence \n");
                     printf("%x DW_LNE_end_sequence\n", *curr); 
 
-                    printf("            0x%016lx     %d    %d    %d\n", state_arr[0].address, state_arr[0].line, state_arr[0].column, state_arr[0].file);
+                    printf("            0x%016lx     %lu    %lu    %lu\n", state_arr[0].address, state_arr[0].line, state_arr[0].column, state_arr[0].file);
                     inc++;
-                      
+
                     if (inc >= allocated_size) {
                         printf("allocationg more matrix space\n");
                         allocated_size = (inc + 1) * 2;
@@ -191,7 +191,7 @@ int dump_dl(char *filepath) {
                 case DW_LNE_set_discriminator:
                     l_operand = decode_uleb128(&ptr1);
                     state_arr[0].discriminator = l_operand;
-                    printf("%x DW_LNE_set_discriminator (%d)\n", *curr, l_operand);
+                    printf("%x DW_LNE_set_discriminator (%lu)\n", *curr, l_operand);
                     line_offset = line_offset + (ptr1 - curr);
 
                 default:
@@ -209,13 +209,13 @@ int dump_dl(char *filepath) {
                     //printf("Checking: %d\n", col_val);
                     line_offset = line_offset + (ptr1 - curr);
                     state_arr[0].column = col_val;
-                    printf("%x DW_LNS_SET_column (%d)\n", DW_LNS_set_column, col_val);
+                    printf("%x DW_LNS_SET_column (%lu)\n", DW_LNS_set_column, col_val);
 
                     break;
                 case DW_LNS_copy:
                     printf("DW_LNS_copy: %d\n", *curr);
 
-                    printf("            0x%016lx     %d    %d    %d\n", state_arr[0].address, state_arr[0].line, state_arr[0].column, state_arr[0].file);
+                    printf("            0x%016lx     %lu    %lu    %lu\n", state_arr[0].address, state_arr[0].line, state_arr[0].column, state_arr[0].file);
 
                     line_offset = line_offset + (ptr1 - curr);
 
@@ -238,7 +238,7 @@ int dump_dl(char *filepath) {
                             max_op_inst);
                     line_offset = line_offset + (ptr1 - curr);
 
-                    printf("%x DW_LNS_advance_pc  (addr += %d, op-index += 0)\n", *curr, address_inc, DW_LNS_advance_pc);
+                    printf("%x DW_LNS_advance_pc  (addr += %lu, op-index += 0)\n", *curr, address_inc);
                     state_arr[0].op_index = (state_arr[0].op_index + op_advance) % max_op_inst;
 
                     state_arr[0].address += address_inc;
@@ -249,12 +249,12 @@ int dump_dl(char *filepath) {
                     s_operand = decode_sleb128(&ptr1);                    
                     state_arr[0].line += s_operand;
                     line_offset = line_offset + (ptr1 - curr);
-                    printf("%x DW_LNS_advance_line %d\n", *curr, s_operand);
+                    printf("%x DW_LNS_advance_line %ld\n", *curr, s_operand);
                     break;
                 case DW_LNS_set_file:
                     l_operand = decode_uleb128(&ptr1);
                     state_arr[0].file = l_operand;
-                    printf("%x DW_LNS_set_file %d\n", *curr, l_operand);
+                    printf("%x DW_LNS_set_file %lu\n", *curr, l_operand);
                     line_offset = line_offset + (ptr1 - curr);
                     break;
                 case DW_LNS_negate_stmt:
@@ -278,7 +278,7 @@ int dump_dl(char *filepath) {
 
                     state_arr[0].op_index = (state_arr[0].op_index + op_advance) % max_op_inst;
 
-                    printf("%x DW_LNS_const_add_pc (addr += 0x%016x, op-index += 0)\n", *curr, address_inc);
+                    printf("%x DW_LNS_const_add_pc (addr += 0x%016lx, op-index += 0)\n", *curr, address_inc);
                     line_offset = line_offset + (ptr1 - curr);
                     state_arr[0].address += address_inc;
 
@@ -287,7 +287,7 @@ int dump_dl(char *filepath) {
                     l_operand = *(uint16_t *)ptr1; 
                     state_arr[0].address = state_arr[0].address + l_operand;
                     state_arr[0].op_index = 0;
-                    printf("%x DW_LNS_fixed_advance_pc %d\n", *curr, l_operand);
+                    printf("%x DW_LNS_fixed_advance_pc %lu\n", *curr, l_operand);
                     ptr1+=sizeof(l_operand);
                     line_offset = line_offset + (ptr1 - curr);
                     break;
@@ -304,7 +304,7 @@ int dump_dl(char *filepath) {
                 case DW_LNS_set_isa:
                     l_operand = decode_uleb128(&ptr1);
                     state_arr[0].isa = l_operand;
-                    printf("%x DW_LNS_set_isa %d\n", *curr, l_operand);
+                    printf("%x DW_LNS_set_isa %lu\n", *curr, l_operand);
                     line_offset = line_offset + (ptr1 - curr);
                     break;
                 default:
@@ -334,9 +334,9 @@ int dump_dl(char *filepath) {
             // append a row to the matrix using the current values of the state machine reg
             inc++;
             //
-            printf("%x address += %d, line += %d, op-index += 0\n", *curr, address_inc, line_inc);
+            printf("%x address += %lu, line += %d, op-index += 0\n", *curr, address_inc, line_inc);
 
-            printf("            0x%016lx     %d    %d    %d\n", state_arr[0].address, state_arr[0].line, state_arr[0].column, state_arr[0].file);
+            printf("            0x%016lx     %lu    %lu    %lu\n", state_arr[0].address, state_arr[0].line, state_arr[0].column, state_arr[0].file);
               
             if (inc >= allocated_size) {
                 printf("allocating more matrix space\n");
@@ -504,12 +504,12 @@ Ret debug_init(const char *file_path) {
     for (int i = 0; i < *dir_ent_fmt_count; i++) {
         dct_arr[i] = decode_uleb128(&ptr1);
         dfc_arr[i] = decode_uleb128(&ptr1);
-        printf("   %x  %x\n", dct_arr[i], dfc_arr[i]);
+        printf("   %lx  %lx\n", dct_arr[i], dfc_arr[i]);
 
     }
 
     uint64_t dc = decode_uleb128(&ptr1);
-    printf("Directory count: %d\n", dc); 
+    printf("Directory count: %lu\n", dc);
 
     uint8_t *directories = ptr1;
 
@@ -551,7 +551,7 @@ Ret debug_init(const char *file_path) {
                         case DW_FORM_udata:
                             //printf("Form code is DW_FORM_udata\n");
                             uint64_t dir_index = decode_uleb128(&ptr1);
-                            printf("Dir Index = %d\n", dir_index);
+                            printf("Dir Index = %lu\n", dir_index);
                             //ptr1+=1;
                             break;
                         case DW_FORM_data1: // TODO
@@ -583,13 +583,13 @@ Ret debug_init(const char *file_path) {
     for (int i = 0; i < *file_name_entry_fmt_count; i++) {
         ct_arr[i] = decode_uleb128(&ptr1);
         fc_arr[i] = decode_uleb128(&ptr1);
-        printf("   %x  %x\n", ct_arr[i], fc_arr[i]);
+        printf("   %lx  %lx\n", ct_arr[i], fc_arr[i]);
     }
 
     // file names count
     uint64_t fn_c = decode_uleb128(&ptr1); 
     
-    printf("File Name Count: %d\n", fn_c);
+    printf("File Name Count: %lu\n", fn_c);
     for (int j = 0; j < fn_c; j++) {
         for (int i = 0; i < *file_name_entry_fmt_count; i++) {
             switch (ct_arr[i]) {
@@ -608,7 +608,7 @@ Ret debug_init(const char *file_path) {
                             printf("  offset=0x%x -> \"%s\"\n", offset, name);
                             break;
                         default:
-                            printf("in here %d %x\n", i, fc_arr[i]);
+                            printf("in here %d %lx\n", i, fc_arr[i]);
                             break;
                     }
                     break;
@@ -619,7 +619,7 @@ Ret debug_init(const char *file_path) {
                         case DW_FORM_udata:
                             printf("Form code is DW_FORM_udata\n");
                             uint64_t dir_index = decode_uleb128(&ptr1);
-                            printf("Dir Index = %d\n", dir_index);
+                            printf("Dir Index = %lu\n", dir_index);
                             //ptr1+=1;
                             break;
                         case DW_FORM_data1:
@@ -709,8 +709,7 @@ Elf64_Shdr * get_section(Elf64_Shdr **shdr_array, uint16_t sh_num, const char * 
 }
 
 unsigned char get_next_bytes_in_input() {
-
-
+    return 0;
 }
 
 uint64_t decode_uleb128(uint8_t **ptr){

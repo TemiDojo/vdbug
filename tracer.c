@@ -34,7 +34,9 @@ typedef struct {
 
 static Breakpoint bptable[MAX_BREAKPOINTS];
 
-static void die(char *s) {
+static bool handle_bp_hit(pid_t pid);
+
+__attribute__((noreturn)) static void die(char *s) {
     puts(s);
     exit(EXIT_FAILURE);
 }
@@ -127,13 +129,13 @@ static void disas_rip(pid_t pid) {
 
     puts("──────────────────────────────────");
     if (idx > 0)
-        printf("     0x%012llx  %-8s %s\n",
+        printf("     0x%012lx  %-8s %s\n",
                insns[idx-1].address, insns[idx-1].mnemonic, insns[idx-1].op_str);
     if (idx >= 0)
-        printf(" ──► 0x%012llx  %-8s %s\n",
+        printf(" ──► 0x%012lx  %-8s %s\n",
                insns[idx].address,   insns[idx].mnemonic,   insns[idx].op_str);
     if (idx >= 0 && idx + 1 < (int)count)
-        printf("     0x%012llx  %-8s %s\n",
+        printf("     0x%012lx  %-8s %s\n",
                insns[idx+1].address, insns[idx+1].mnemonic, insns[idx+1].op_str);
     puts("──────────────────────────────────");
 
