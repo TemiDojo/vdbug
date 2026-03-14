@@ -24,6 +24,11 @@
 #define BOX_BOTTOM  "╚══════════════════════════════╝"
 #define CLEAR_SCREEN "\x1b[1;1H\x1b[2J"
 
+#define BOLD    "\x1b[1m"
+#define DIM     "\x1b[2m"
+#define CYAN    "\x1b[96m"
+#define RESET   "\x1b[0m"
+
 #define MAX_BREAKPOINTS 16
 
 typedef struct {
@@ -157,7 +162,13 @@ static void display_info(pid_t pid) {
     for (int i = 0; i < MAX_BREAKPOINTS; i++)
         if (bptable[i].active)
             printf("breakpoint %d: 0x%012lx\n", i, bptable[i].addr);
-    puts("Enter: [s] single step | [n] next (step over) | [f] finish (step out) | [c] continue | [b] set breakpoint");
+    puts(DIM "──────────────────────────────────" RESET);
+    printf("  " BOLD CYAN "s" RESET " step    "
+           BOLD CYAN "n" RESET " next    "
+           BOLD CYAN "f" RESET " finish    "
+           BOLD CYAN "c" RESET " continue    "
+           BOLD CYAN "b" RESET " breakpoint    "
+           BOLD CYAN "d" RESET " delete bp\n");
 }
 
 
@@ -301,8 +312,6 @@ unsigned long get_base_address(pid_t pid) {
 }
 
 
-// TODO: clear breakpoint function
-
 int ptrace_init(const char *target_path) {
     pid_t tracee_pid = fork();
 
@@ -360,6 +369,18 @@ int ptrace_init(const char *target_path) {
                     unsigned long addr = strtoul(line, &endptr, 16);
                     printf("set breakpoint at: 0x%lx\n", addr);
                     set_breakpoint(tracee_pid, (void *)addr);
+                    break;
+                }
+                case 'd': {
+                    printf("Enter breakpoint index: ");
+                    nread = getline(&line, &size, stdin);
+                    int idx = (int)strtol(line, NULL, 10);
+                    if (idx >= 0 && idx < MAX_BREAKPOINTS && bptable[idx].active) {
+                        clear_breakpoint(tracee_pid, bptable[idx].addr);
+                        printf("cleared breakpoint %d\n", idx);
+                    } else {
+                        printf("no active breakpoint at index %d\n", idx);
+                    }
                     break;
                 }
                 default:
