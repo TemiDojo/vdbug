@@ -132,8 +132,8 @@ int dump_dl(char *filepath) {
     initialize_default_state(&state_arr);
 
     // Line Number Program
-    uint8_t * curr;
-    int inc = 0;
+    uint8_t *curr;
+    size_t inc = 0;
     uint64_t l_operand;
     int64_t s_operand;
     int adj_opcode;
