@@ -168,7 +168,8 @@ static void display_info(pid_t pid) {
            BOLD CYAN "f" RESET " finish    "
            BOLD CYAN "c" RESET " continue    "
            BOLD CYAN "b" RESET " breakpoint    "
-           BOLD CYAN "d" RESET " delete bp\n");
+           BOLD CYAN "d" RESET " delete bp    "
+           BOLD CYAN "q" RESET " quit\n");
 }
 
 
@@ -383,6 +384,11 @@ int ptrace_init(const char *target_path) {
                     }
                     break;
                 }
+                case 'q':
+                    kill(tracee_pid, SIGKILL);
+                    puts("Tracee killed.");
+                    running = false;
+                    break;
                 default:
                     puts("Error: unknown command");
             }
