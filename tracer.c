@@ -24,7 +24,15 @@
 #define BOX_BOTTOM  "╚══════════════════════════════╝"
 #define CLEAR_SCREEN "\x1b[1;1H\x1b[2J"
 
-static uintptr_t breakpoint_addr = 0;
+#define MAX_BREAKPOINTS 16
+
+typedef struct {
+    uintptr_t addr;
+    uint8_t   orig_byte;
+    bool      active;
+} Breakpoint;
+
+static Breakpoint bptable[MAX_BREAKPOINTS];
 
 static void die(char *s) {
     puts(s);
@@ -144,8 +152,9 @@ static void display_info(pid_t pid) {
     printf("%s", CLEAR_SCREEN);
     d_regs(pid);
     disas_rip(pid);
-    if (breakpoint_addr)
-        printf("breakpoints: 0x%012lx\n", breakpoint_addr);
+    for (int i = 0; i < MAX_BREAKPOINTS; i++)
+        if (bptable[i].active)
+            printf("breakpoint %d: 0x%012lx\n", i, bptable[i].addr);
     puts("Enter: [s] single step | [n] next (step over) | [f] finish (step out) | [c] continue | [b] set breakpoint");
 }
 
@@ -175,8 +184,10 @@ static bool cont(pid_t pid) {
         puts("Tracee exited.");
         return false;
     }
-    if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) == SIGTRAP)
+    if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) == SIGTRAP) {
+        handle_bp_hit(pid);
         puts("Tracee stopped.");
+    }
     return true;
 }
 
@@ -226,13 +237,51 @@ static bool step_out(pid_t pid) {
 }
 
 static void set_breakpoint(pid_t pid, void *address) {
-    struct user_regs_struct regs;
-    // TODO: dynamically set breakpoints
-    ptrace(PTRACE_POKEUSER, pid, offsetof(struct user, u_debugreg[0]), address);
-    ptrace(PTRACE_POKEUSER, pid, offsetof(struct user, u_debugreg[7]), (void *)0x00000002UL);
-    breakpoint_addr = (uintptr_t)address;
+    uintptr_t addr = (uintptr_t)address;
+
+    for (int i = 0; i < MAX_BREAKPOINTS; i++)
+        if (bptable[i].active && bptable[i].addr == addr)
+            return;
+
+    for (int i = 0; i < MAX_BREAKPOINTS; i++) {
+        if (!bptable[i].active) {
+            unsigned long word = ptrace(PTRACE_PEEKDATA, pid, address, NULL);
+            bptable[i].addr      = addr;
+            bptable[i].orig_byte = word & 0xFF;
+            bptable[i].active    = true;
+            ptrace(PTRACE_POKEDATA, pid, address, (void *)((word & ~0xFFUL) | 0xCC));
+            return;
+        }
+    }
+    puts("too many breakpoints");
 }
 
+static void clear_breakpoint(pid_t pid, uintptr_t addr) {
+    for (int i = 0; i < MAX_BREAKPOINTS; i++) {
+        if (bptable[i].active && bptable[i].addr == addr) {
+            unsigned long word = ptrace(PTRACE_PEEKDATA, pid, (void *)addr, NULL);
+            ptrace(PTRACE_POKEDATA, pid, (void *)addr, (void *)((word & ~0xFFUL) | bptable[i].orig_byte));
+            bptable[i].active = false;
+            return;
+        }
+    }
+}
+
+static bool handle_bp_hit(pid_t pid) {
+    struct user_regs_struct regs = {};
+    ptrace(PTRACE_GETREGS, pid, NULL, &regs);
+    uintptr_t bp_addr = regs.rip - 1;
+
+    for (int i = 0; i < MAX_BREAKPOINTS; i++) {
+        if (bptable[i].active && bptable[i].addr == bp_addr) {
+            clear_breakpoint(pid, bp_addr);
+            regs.rip = bp_addr;
+            ptrace(PTRACE_SETREGS, pid, NULL, &regs);
+            return true;
+        }
+    }
+    return false;
+}
 
 unsigned long get_base_address(pid_t pid) {
     char path[256];
