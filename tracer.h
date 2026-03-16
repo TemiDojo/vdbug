@@ -1,4 +1,5 @@
 #include <sys/ptrace.h>
+#include "dwarf/dl_parser.h"
 
 static void print_regs(struct user_regs_struct regs);
 static void die(char *s);
@@ -11,4 +12,4 @@ static void display_info(pid_t tracee_pid);
 static void d_regs(pid_t tracee_pid);
 static void set_breakpoint(pid_t tracee_pid, void * address);
 int stop_status(int status);
-int ptrace_init(const char* target_path);
+int ptrace_init(const char* target_path, Matrix *m);

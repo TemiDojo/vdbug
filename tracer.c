@@ -16,7 +16,6 @@
 #include <sys/wait.h>   // for waitpid, WSTOPSIG
 #include <capstone/capstone.h>
 #include "tracer.h"
-#include "dwarf/dl_parser.h"
 
 #define BOX_TOP     "╔══════════════════════════════╗"
 #define BOX_SIDE    "║"
@@ -40,6 +39,7 @@ typedef struct {
 static Breakpoint bptable[MAX_BREAKPOINTS];
 
 static bool handle_bp_hit(pid_t pid);
+unsigned long base = 0;
 
 __attribute__((noreturn)) static void die(char *s) {
     puts(s);
@@ -297,23 +297,23 @@ static bool handle_bp_hit(pid_t pid) {
     return false;
 }
 
-unsigned long get_base_address(pid_t pid) {
+int get_base_address(pid_t pid) {
     char path[256];
     sprintf(path, "/proc/%d/maps", pid);
     FILE *f = fopen(path, "r");
     if (!f) {
         puts("Failed to open /proc/pid/maps");
-        return 0;
+        return -1;
     }
-    unsigned long base = 0;
+
     fscanf(f, "%lx", &base);
     printf("base: %lx\n", base);
     fclose(f);
-    return base;
+    return 1;
 }
 
 
-int ptrace_init(const char *target_path) {
+int ptrace_init(const char *target_path, Matrix *m) {
     pid_t tracee_pid = fork();
 
     if (tracee_pid == 0) {
@@ -323,9 +323,10 @@ int ptrace_init(const char *target_path) {
         execl(target_path, target_path, NULL);
         die("execl failed");
     }
+    unsigned long offset = m->arr[0]->address;
 
     // parent: control the child
-    unsigned long offset = (unsigned long)get_first_func_address(target_path);
+    //unsigned long offset = (unsigned long)get_first_func_address(target_path);
     printf("checking :%lx\n", offset);
 
     int status;
@@ -333,7 +334,8 @@ int ptrace_init(const char *target_path) {
     if (WIFSTOPPED(status))
         printf("Parent: Child stoppped, starting ptrace operations.\n");
 
-    unsigned long base = get_base_address(tracee_pid);
+    //unsigned long base = dump_dl(tracee_pid);
+    get_base_address(tracee_pid);
     if (base != 0)
         set_breakpoint(tracee_pid, (void *)(base + offset));
 
@@ -409,6 +411,18 @@ int main(int argc, char **argv) {
         puts("Usage: ptracer <target>");
         return -1;
     }
-    ptrace_init(argv[1]);
+    const char* target_path = argv[1];
+    Matrix *m = initialize_matrix();
+    dump_dl(target_path, m);
+    ptrace_init(target_path, m);
+
+    for(size_t i = 0; i < m->count; i++) {
+        free(m->arr[i]);
+        m->arr[i] = NULL;
+    }
+    free(m->arr);
+    m->arr = NULL;
+    free(m);
+
     return 0;
 }

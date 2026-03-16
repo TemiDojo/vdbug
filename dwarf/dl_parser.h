@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <string.h>
+#include <stdbool.h>
 
 
 
@@ -47,22 +48,20 @@ typedef struct __attribute__((packed)) {
 
 } ProgramRegisterState;
 
-typedef struct{
-    void * start;
-    uint8_t *ptr1;
-    uint8_t opcodebase;
-    uint8_t min_ins_len;
-    uint8_t max_op_inst;
-    uint8_t line_range;
-    uint8_t line_base;
-} Ret;
+typedef struct {
+    ProgramRegisterState **arr;
+    size_t count;
+    size_t capacity;
+
+} Matrix;
 
 
-Ret debug_init(const char *file_path);
-uint64_t get_first_func_address(const char *filepath);
-int dump_dl(char *filepath);
+
+uint64_t get_first_func_address(char *filepath);
+int dump_dl(const char *filepath, Matrix *m);
 uint64_t decode_uleb128(uint8_t **ptr);
 int64_t decode_sleb128(uint8_t **ptr);
-void initialize_default_state(ProgramRegisterState **state_arr);
-void append_row_matrix(ProgramRegisterState **state_arr, int row_index);
+Matrix *initialize_matrix();
+void initialize_default_state(ProgramRegisterState *state_arr);
+void add_row(Matrix *m, ProgramRegisterState dummy);
 Elf64_Shdr * get_section(Elf64_Shdr **shdr_array, uint16_t sh_num, const char * cmp, char *str_tab);
