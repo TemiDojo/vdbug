@@ -40,6 +40,7 @@ static Breakpoint bptable[MAX_BREAKPOINTS];
 
 static bool handle_bp_hit(pid_t pid);
 unsigned long base = 0;
+uintptr_t prev = 0;
 
 __attribute__((noreturn)) static void die(char *s) {
     puts(s);
@@ -114,17 +115,29 @@ static void disas_rip(pid_t pid) {
     struct user_regs_struct regs = {};
     ptrace_or_die(PTRACE_GETREGS, pid, NULL, &regs);
 
-    uintptr_t start = (regs.rip - 15) & ~(uintptr_t)7;
-    uint64_t buf[5];
-    for (int i = 0; i < 5; i++)
+    uintptr_t start = (regs.rip);
+    uint64_t buf[4];
+    for (int i = 0; i < 4; i++)
         buf[i] = read_word(pid, start + i * 8);
 
+    uint64_t prev_buf[2];
+    cs_insn *prev_ins;
+    size_t p_count;
+    if (prev != 0) {
+        for(int i = 0; i < 2; i++) {
+            prev_buf[i] = read_word(pid, prev + i * 8);
+        }
+
+        p_count = cs_disasm(cs_handle, (uint8_t *)prev_buf, sizeof(prev_buf), prev, 1, &prev_ins);
+    }
     cs_insn *insns;
     size_t count = cs_disasm(cs_handle, (uint8_t *)buf, sizeof(buf), start, 0, &insns);
+
     if (count == 0)
         die("cs_disasm failed!");
+    printf("disased : %ld\n", count);
 
-    int idx = -1;
+    int idx = 0;
     for (size_t i = 0; i < count; i++) {
         if (insns[i].address == regs.rip) {
             idx = (int)i;
@@ -133,18 +146,22 @@ static void disas_rip(pid_t pid) {
     }
 
     puts("──────────────────────────────────");
-    if (idx > 0)
+    if (prev != 0) {
         printf("     0x%012lx  %-8s %s\n",
-               insns[idx-1].address, insns[idx-1].mnemonic, insns[idx-1].op_str);
-    if (idx >= 0)
-        printf(" ──► 0x%012lx  %-8s %s\n",
-               insns[idx].address,   insns[idx].mnemonic,   insns[idx].op_str);
-    if (idx >= 0 && idx + 1 < (int)count)
+               prev_ins[0].address, prev_ins[0].mnemonic, prev_ins[0].op_str);
+    }
+    printf(" ──► 0x%012lx  %-8s %s\n",
+           insns[0].address,   insns[0].mnemonic,   insns[0].op_str);
+    if (count > 1) {
         printf("     0x%012lx  %-8s %s\n",
                insns[idx+1].address, insns[idx+1].mnemonic, insns[idx+1].op_str);
+    }
     puts("──────────────────────────────────");
 
+    prev = regs.rip;
+
     cs_free(insns, count);
+    cs_free(prev_ins, p_count);
     cs_close(&cs_handle);
 }
 
