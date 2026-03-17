@@ -137,12 +137,7 @@ static void disas_rip(pid_t pid) {
         die("cs_disasm failed!");
     printf("disased : %ld\n", count);
 
-    int idx = 0;
     for (size_t i = 0; i < count; i++) {
-        if (insns[i].address == regs.rip) {
-            idx = (int)i;
-            break;
-        }
     }
 
     puts("──────────────────────────────────");
@@ -152,11 +147,16 @@ static void disas_rip(pid_t pid) {
     }
     printf(" ──► 0x%012lx  %-8s %s\n",
            insns[0].address,   insns[0].mnemonic,   insns[0].op_str);
+
+
+
+
     if (count > 1) {
         printf("     0x%012lx  %-8s %s\n",
-               insns[idx+1].address, insns[idx+1].mnemonic, insns[idx+1].op_str);
+               insns[1].address, insns[1].mnemonic, insns[1].op_str);
     }
     puts("──────────────────────────────────");
+    
 
     prev = regs.rip;
 
