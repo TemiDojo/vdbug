@@ -483,7 +483,7 @@ int ptrace_init(const char *target_path, Matrix *m) {
 
     if (tracee_pid == 0) {
         // child: become the tracee
-        puts("Child: Tracing this process.\n");
+        //puts("Child: Tracing this process.\n");
         ptrace(PTRACE_TRACEME, 0, NULL, NULL);
         execl(target_path, target_path, NULL);
         die("execl failed");
@@ -492,12 +492,12 @@ int ptrace_init(const char *target_path, Matrix *m) {
 
     // parent: control the child
     //unsigned long offset = (unsigned long)get_first_func_address(target_path);
-    printf("checking :%lx\n", offset);
+    //printf("checking :%lx\n", offset);
 
     int status;
     waitpid(tracee_pid, &status, 0);
     if (WIFSTOPPED(status))
-        printf("Parent: Child stoppped, starting ptrace operations.\n");
+        //printf("Parent: Child stoppped, starting ptrace operations.\n");
 
     struct user_regs_struct regs = {};
     ptrace_or_die(PTRACE_GETREGS, tracee_pid, NULL, &regs);

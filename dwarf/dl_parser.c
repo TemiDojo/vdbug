@@ -70,8 +70,8 @@ int dump_dl(const char *filepath, Matrix *m) {
 
 
 
-    puts("Raw dump of debug contents of section .debug_line:");
-    puts("");
+    //puts("Raw dump of debug contents of section .debug_line:");
+    //puts("");
     //printf("   %-30s %u\n", "Length:", data->length);
     //printf("   %-30s %u\n", "Dwarf version:", data->version);
     //printf("   %-30s %u\n", "Header length:", data->header_length);
@@ -93,8 +93,8 @@ int dump_dl(const char *filepath, Matrix *m) {
     ptr1+=1;
 
     // Parse the opcodes
-    puts("");
-    puts(" Opcodes");
+    //puts("");
+    //puts(" Opcodes");
 
     for(int k = 0; k < data->opcode_base - 1; k++) {
         //printf("   Opcode %d has %u args\n", k+1, std_opcode_len[k]);
