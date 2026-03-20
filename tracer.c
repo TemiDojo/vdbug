@@ -497,8 +497,9 @@ int ptrace_init(const char *target_path, Matrix *m) {
 
     int status;
     waitpid(tracee_pid, &status, 0);
-    if (WIFSTOPPED(status))
+    if (WIFSTOPPED(status)) {
         //printf("Parent: Child stoppped, starting ptrace operations.\n");
+    }
 
     struct user_regs_struct regs = {};
     ptrace_or_die(PTRACE_GETREGS, tracee_pid, NULL, &regs);
