@@ -41,6 +41,9 @@ static Breakpoint bptable[MAX_BREAKPOINTS];
 static bool handle_bp_hit(pid_t pid);
 unsigned long base = 0;
 uintptr_t prev = 0;
+//uint8_t *vbuf = NULL;
+int64_t v_addy;
+int r_size = 0;
 
 __attribute__((noreturn)) static void die(char *s) {
     puts(s);
@@ -106,6 +109,7 @@ static csh cs_open_or_die(void) {
     csh handle;
     if (cs_open(CS_ARCH_X86, CS_MODE_64, &handle) != CS_ERR_OK)
         die("cs_open failed!");
+    cs_option(handle, CS_OPT_DETAIL, CS_OPT_ON);
     return handle;
 }
 
@@ -135,33 +139,92 @@ static void disas_rip(pid_t pid) {
 
     if (count == 0)
         die("cs_disasm failed!");
-    printf("disased : %ld\n", count);
 
     for (size_t i = 0; i < count; i++) {
     }
+
+
 
     puts("──────────────────────────────────");
     if (prev != 0) {
         printf("     0x%012lx  %-8s %s\n",
                prev_ins[0].address, prev_ins[0].mnemonic, prev_ins[0].op_str);
+        cs_free(prev_ins, p_count);
     }
     printf(" ──► 0x%012lx  %-8s %s\n",
            insns[0].address,   insns[0].mnemonic,   insns[0].op_str);
-
-
-
 
     if (count > 1) {
         printf("     0x%012lx  %-8s %s\n",
                insns[1].address, insns[1].mnemonic, insns[1].op_str);
     }
     puts("──────────────────────────────────");
+
+    cs_detail *detail = insns->detail;
+    cs_x86 x86 = detail->x86;
+
+    if (x86.op_count == 2) {
+        cs_x86_op op; 
+        cs_x86_op op1;
+
+        op = x86.operands[0];
+        op1 = x86.operands[1];
+        uint8_t op1_size = op1.size;
+        cs_ac_type read = CS_AC_READ;
+        cs_ac_type write = CS_AC_WRITE;
+
+        if (op.type == X86_OP_MEM && write == op.access) {
+
+            x86_op_mem mem = op.mem;
+            x86_reg segment = mem.segment;
+            x86_reg sbase = mem.base;
+            x86_reg index = mem.index;
+            int scale = mem.scale;
+            int64_t disp = mem.disp;
+            int64_t addy = disp;
+
+            if (segment != X86_REG_INVALID) {
+
+            } else {
+                //puts("segment invalid");  
+            }
+            if (sbase != X86_REG_INVALID) {
+                addy += get_regs(regs, sbase);                
+            } else {
+                //puts("base invalid");
+            }
+            if (index != X86_REG_INVALID) {
+                // scale the index
+                addy += (scale * get_regs(regs, index));
+            }else {
+                //puts("index invalid");
+            }
+
+            uint8_t *t_buf = malloc(op1_size * sizeof(uint8_t));
+            get_n_bytes(t_buf, op1_size, pid, addy);
+
+            //printf("size to read from: %d\n", op1_size);
+            printf("pre-write @ %lx: ", addy);
+            for(int i = 0; i < op1_size; i++) {
+                printf("%02x ", t_buf[i]);
+            }
+            puts("");
+            r_size = op1_size;
+            v_addy = addy;
+            free(t_buf);
+        }
+
+    }
+
+
+
+
     
 
     prev = regs.rip;
 
     cs_free(insns, count);
-    cs_free(prev_ins, p_count);
+
     cs_close(&cs_handle);
 }
 
@@ -175,7 +238,23 @@ static void d_regs(pid_t pid) {
 static void display_info(pid_t pid) {
     printf("%s", CLEAR_SCREEN);
     d_regs(pid);
+
+    if (r_size > 0) {
+        uint8_t *vbuf = malloc(r_size * sizeof(uint8_t));
+        get_n_bytes(vbuf, r_size, pid, v_addy);
+        printf("recent write @ %lx: ", v_addy);
+        for(int i = 0; i < r_size; i++) {
+             printf("%02x ", vbuf[i]);
+        }
+        puts("");
+        free(vbuf);
+    }
+
     disas_rip(pid);
+
+
+
+
     for (int i = 0; i < MAX_BREAKPOINTS; i++)
         if (bptable[i].active)
             printf("breakpoint %d: 0x%012lx\n", i, bptable[i].addr);
@@ -202,6 +281,9 @@ static bool single_step(pid_t pid) {
     }
     if (WIFSTOPPED(wstatus) && WSTOPSIG(wstatus) == SIGTRAP)
         puts("Tracee stopped.");
+
+    // recent write
+
     return true;
 }
 
@@ -228,7 +310,7 @@ static bool next_i(pid_t pid) {
     struct user_regs_struct regs = {};
     ptrace_or_die(PTRACE_GETREGS, pid, NULL, &regs);
 
-    uintptr_t start = (regs.rip - 15) & ~(uintptr_t)7;
+    uintptr_t start = regs.rip;
     uint64_t buf[5];
     for (int i = 0; i < 5; i++)
         buf[i] = read_word(pid, start + i * 8);
