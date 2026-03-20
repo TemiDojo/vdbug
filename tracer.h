@@ -9,14 +9,15 @@ static int check_child_ret(pid_t tracee_pid);
 static bool single_step(pid_t tracee_pid);
 static bool next_i(pid_t tracee_pid);
 static bool cont(pid_t tracee_pid);
-static void display_info(pid_t tracee_pid);
+static void display_info(pid_t tracee_pid, Matrix *m);
 static void d_regs(pid_t tracee_pid);
 static void set_breakpoint(pid_t tracee_pid, void * address);
 int stop_status(int status);
 int ptrace_init(const char* target_path, Matrix *m);
 static long ptrace_or_die(enum __ptrace_request op, pid_t pid, void *addr, void *data); 
 int get_n_bytes(void *buf, uint8_t size, pid_t pid, int64_t addr);
-
+static void disas_rip(pid_t pid, Matrix *m); 
+uint64_t get_line(Matrix *m, uint64_t address);
 
 
 int get_n_bytes(void *buf, uint8_t size, pid_t pid, int64_t addr) {   

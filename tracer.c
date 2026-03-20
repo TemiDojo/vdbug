@@ -41,7 +41,6 @@ static Breakpoint bptable[MAX_BREAKPOINTS];
 static bool handle_bp_hit(pid_t pid);
 unsigned long base = 0;
 uintptr_t prev = 0;
-//uint8_t *vbuf = NULL;
 int64_t v_addy;
 int r_size = 0;
 
@@ -113,7 +112,7 @@ static csh cs_open_or_die(void) {
     return handle;
 }
 
-static void disas_rip(pid_t pid) {
+static void disas_rip(pid_t pid, Matrix *m) {
     csh cs_handle = cs_open_or_die();
 
     struct user_regs_struct regs = {};
@@ -140,23 +139,25 @@ static void disas_rip(pid_t pid) {
     if (count == 0)
         die("cs_disasm failed!");
 
-    for (size_t i = 0; i < count; i++) {
-    }
 
-
+    
 
     puts("──────────────────────────────────");
+    int64_t line;
     if (prev != 0) {
-        printf("     0x%012lx  %-8s %s\n",
-               prev_ins[0].address, prev_ins[0].mnemonic, prev_ins[0].op_str);
+        line = get_line(m, prev_ins[0].address);
+        printf("     0x%012lx  %-8s %s > line %ld\n",
+               prev_ins[0].address, prev_ins[0].mnemonic, prev_ins[0].op_str, line);
         cs_free(prev_ins, p_count);
     }
-    printf(" ──► 0x%012lx  %-8s %s\n",
-           insns[0].address,   insns[0].mnemonic,   insns[0].op_str);
+    line = get_line(m, insns[0].address);
+    printf(" ──► 0x%012lx  %-8s %s > line %ld\n",
+           insns[0].address,   insns[0].mnemonic,   insns[0].op_str, line);
 
     if (count > 1) {
-        printf("     0x%012lx  %-8s %s\n",
-               insns[1].address, insns[1].mnemonic, insns[1].op_str);
+        line = get_line(m, insns[1].address);
+        printf("     0x%012lx  %-8s %s > line %ld\n",
+               insns[1].address, insns[1].mnemonic, insns[1].op_str, line);
     }
     puts("──────────────────────────────────");
 
@@ -235,7 +236,7 @@ static void d_regs(pid_t pid) {
     print_regs(regs);
 }
 
-static void display_info(pid_t pid) {
+static void display_info(pid_t pid, Matrix *m) {
     printf("%s", CLEAR_SCREEN);
     d_regs(pid);
 
@@ -250,7 +251,7 @@ static void display_info(pid_t pid) {
         free(vbuf);
     }
 
-    disas_rip(pid);
+    disas_rip(pid, m);
 
 
 
@@ -411,6 +412,15 @@ int get_base_address(pid_t pid) {
     return 1;
 }
 
+uint64_t get_line(Matrix *m, uint64_t address) {
+
+    for(size_t i = 0; i < m->count-1; i++) {
+        if (address <= base+m->arr[i]->address) {
+            return m->arr[i]->line;
+        }
+    }
+    return -1;
+}
 
 int ptrace_init(const char *target_path, Matrix *m) {
     pid_t tracee_pid = fork();
@@ -440,7 +450,7 @@ int ptrace_init(const char *target_path, Matrix *m) {
 
     bool running = true;
     while (running) {
-        display_info(tracee_pid);
+        display_info(tracee_pid, m);
 
         char *line = NULL;
         size_t size = 0;
