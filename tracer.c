@@ -106,6 +106,7 @@ static void print_regs(struct user_regs_struct regs) {
 
 static void parse_stack(uintptr_t initial_rsp, uintptr_t end_rsp, uintptr_t rbp, pid_t pid) {
 
+    printf("\n+++++++++++++ STACK ++++++++++++\n");
     puts(BOX_TOP);
 
     uintptr_t current_slot = initial_rsp;
