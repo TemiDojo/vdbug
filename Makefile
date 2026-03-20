@@ -15,7 +15,7 @@ $(DWARF_DIR)/dl_parser.o: $(DWARF_DIR)/dl_parser.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 target: target.c
-	$(CC) $(CFLAGS) $< -o $@
+	$(CC) -g $< -o $@
 
 clean:
 	rm -f tracer target $(DWARF_DIR)/*.o

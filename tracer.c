@@ -64,7 +64,7 @@ static void err_check(void) {
 static long ptrace_or_die(enum __ptrace_request op, pid_t pid, void *addr, void *data) {
     long result = ptrace(op, pid, addr, data);
     if (result == -1)
-        die("ptrace failed!");
+        err_check();
     return result;
 }
 
@@ -102,6 +102,44 @@ static void print_regs(struct user_regs_struct regs) {
     printf(BOX_SIDE " eflags: 0x%016llx   " BOX_SIDE "\n", regs.eflags);
     puts(BOX_BOTTOM);
     puts("");
+}
+
+static void parse_stack(uintptr_t initial_rsp, uintptr_t end_rsp, uintptr_t rbp, pid_t pid) {
+
+    puts(BOX_TOP);
+
+    uintptr_t current_slot = initial_rsp;
+    if (current_slot - end_rsp >= (64)) {
+        current_slot = end_rsp + 64;
+    }
+
+    unsigned long stack_start, stack_end;
+    get_stack_range(pid, &stack_start, &stack_end);
+
+    while (current_slot >= end_rsp - 8) {
+        if (current_slot < stack_start || current_slot >= stack_end) {
+            break;
+        }
+        uint64_t stack_value = read_word(pid, current_slot);
+        printf(BOX_SIDE "      0x%016" PRIx64 "      " BOX_SIDE "\n",
+               stack_value);
+
+        if (current_slot != end_rsp - 8) {
+            if (current_slot == end_rsp && current_slot == rbp) {
+                printf(BOX_DIVIDER " ← rsp, rbp\n");
+
+            } else if (current_slot == end_rsp) {
+                printf(BOX_DIVIDER " ← rsp\n");
+            } else if (current_slot == rbp) {
+                printf(BOX_DIVIDER " ← rbp\n");
+            } else {
+                printf(BOX_DIVIDER "\n");
+            }
+        }
+        current_slot -= 8;
+    }
+    // printf(BOX_BOTTOM " ← rsp\n");
+    printf(BOX_BOTTOM "\n");
 }
 
 static csh cs_open_or_die(void) {
@@ -171,7 +209,6 @@ static void disas_rip(pid_t pid, Matrix *m) {
         op = x86.operands[0];
         op1 = x86.operands[1];
         uint8_t op1_size = op1.size;
-        cs_ac_type read = CS_AC_READ;
         cs_ac_type write = CS_AC_WRITE;
 
         if (op.type == X86_OP_MEM && write == op.access) {
@@ -217,28 +254,18 @@ static void disas_rip(pid_t pid, Matrix *m) {
 
     }
 
-
-
-
-    
-
     prev = regs.rip;
-
     cs_free(insns, count);
-
     cs_close(&cs_handle);
 }
 
-static void d_regs(pid_t pid) {
-    struct user_regs_struct regs = {};
-    if (ptrace(PTRACE_GETREGS, pid, NULL, &regs) == -1)
-        err_check();
-    print_regs(regs);
-}
 
-static void display_info(pid_t pid, Matrix *m) {
+static void display_info(pid_t pid, Matrix *m, uintptr_t initial_rsp) {
     printf("%s", CLEAR_SCREEN);
-    d_regs(pid);
+
+    struct user_regs_struct regs = {};
+    ptrace_or_die(PTRACE_GETREGS, pid, NULL, &regs);
+    print_regs(regs);
 
     if (r_size > 0) {
         uint8_t *vbuf = malloc(r_size * sizeof(uint8_t));
@@ -267,6 +294,10 @@ static void display_info(pid_t pid, Matrix *m) {
            BOLD CYAN "b" RESET " breakpoint    "
            BOLD CYAN "d" RESET " delete bp    "
            BOLD CYAN "q" RESET " quit\n");
+
+    parse_stack(initial_rsp, regs.rsp, regs.rbp, pid);
+    get_base_address(pid);
+
 }
 
 
@@ -397,6 +428,26 @@ static bool handle_bp_hit(pid_t pid) {
     return false;
 }
 
+
+int get_stack_range(pid_t pid, unsigned long *start, unsigned long *end) {
+    char path[256], line[512];
+    sprintf(path, "/proc/%d/maps", pid);
+    
+    FILE *f = fopen(path, "r");
+    if (!f) return -1;
+
+    while (fgets(line, sizeof(line), f)) {
+        if (strstr(line, "[stack]")) {
+            sscanf(line, "%lx-%lx", start, end);
+            fclose(f);
+            return 0;
+        }
+    }
+
+    fclose(f);
+    return -1;
+}
+
 int get_base_address(pid_t pid) {
     char path[256];
     sprintf(path, "/proc/%d/maps", pid);
@@ -405,9 +456,14 @@ int get_base_address(pid_t pid) {
         puts("Failed to open /proc/pid/maps");
         return -1;
     }
+    // int ch;
+    // while((ch = getc(f)) != EOF) {
+    //     putchar(ch); 
+    // }
+    // rewind(f);
 
     fscanf(f, "%lx", &base);
-    printf("base: %lx\n", base);
+    //printf("base: %lx\n", base);
     fclose(f);
     return 1;
 }
@@ -443,6 +499,10 @@ int ptrace_init(const char *target_path, Matrix *m) {
     if (WIFSTOPPED(status))
         printf("Parent: Child stoppped, starting ptrace operations.\n");
 
+    struct user_regs_struct regs = {};
+    ptrace_or_die(PTRACE_GETREGS, tracee_pid, NULL, &regs);
+    uintptr_t initial_rsp = regs.rsp;
+
     //unsigned long base = dump_dl(tracee_pid);
     get_base_address(tracee_pid);
     if (base != 0)
@@ -450,7 +510,8 @@ int ptrace_init(const char *target_path, Matrix *m) {
 
     bool running = true;
     while (running) {
-        display_info(tracee_pid, m);
+        display_info(tracee_pid, m, initial_rsp);
+
 
         char *line = NULL;
         size_t size = 0;
