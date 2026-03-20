@@ -20,13 +20,13 @@ int dump_dl(const char *filepath, Matrix *m) {
 
     int fd = open(path, O_RDONLY);
     if (fd == -1) {
-        printf("failed to open file %s\n", path);
+        //printf("failed to open file %s\n", path);
         exit(-1);
     }
 
     struct stat sb;
     if (fstat(fd, &sb) == -1) {
-        printf("failed to get stat\n");
+        //printf("failed to get stat\n");
         exit(-1);
     }
 
@@ -34,19 +34,19 @@ int dump_dl(const char *filepath, Matrix *m) {
 
     void *elf_bytes = mmap(NULL, filesize, PROT_READ, MAP_PRIVATE, fd, 0);
     if (elf_bytes == MAP_FAILED) {
-        printf("failed to mmap file\n");
+        //printf("failed to mmap file\n");
         exit(-1);
     }
 
     Elf64_Ehdr *ehdr = (Elf64_Ehdr *)elf_bytes;
-    Elf64_Addr entry = ehdr->e_entry;
+    //Elf64_Addr entry = ehdr->e_entry;
     Elf64_Off shoff = ehdr->e_shoff; // section header offset(in bytes) from the elf header
     uint16_t shnum = ehdr->e_shnum; // number of section headers
     uint16_t shstrndx = ehdr->e_shstrndx; //string table section index
 
-    printf("Elf entrypoint: 0x%lx\n", entry);
-    printf("Elf section header offset: 0x%lx\n", shoff);
-    printf("Number of section headers: %u\n", shnum);
+    //printf("Elf entrypoint: 0x%lx\n", entry);
+    //printf("Elf section header offset: 0x%lx\n", shoff);
+    //printf("Number of section headers: %u\n", shnum);
 
     // Get pontr to section header array
     Elf64_Shdr *shdr_array = (Elf64_Shdr *)((char *) elf_bytes + shoff);
@@ -72,20 +72,20 @@ int dump_dl(const char *filepath, Matrix *m) {
 
     puts("Raw dump of debug contents of section .debug_line:");
     puts("");
-    printf("   %-30s %u\n", "Length:", data->length);
-    printf("   %-30s %u\n", "Dwarf version:", data->version);
-    printf("   %-30s %u\n", "Header length:", data->header_length);
-    printf("   %-30s %u\n", "Address size (bytes):", data->address_size);
-    printf("   %-30s %u\n", "Segment Selector (bytes):", data->segment_selector_size);
-    printf("   %-30s %u\n", "Minimun Instruction Length:", data->min_instruction_length);
-    printf("   %-30s %u\n", "Maximum Ops per Instruction:", data->max_ops_per_instruction);
-    printf("   %-30s %u\n", "Initial values of 'is_stmt':", data->default_is_smt);
-    printf("   %-30s %d\n", "Line Base:", data->line_base);
-    printf("   %-30s %u\n", "Line Range:", data->line_range);
-    printf("   %-30s %u\n", "Opcode Base:", data->opcode_base);
+    //printf("   %-30s %u\n", "Length:", data->length);
+    //printf("   %-30s %u\n", "Dwarf version:", data->version);
+    //printf("   %-30s %u\n", "Header length:", data->header_length);
+    //printf("   %-30s %u\n", "Address size (bytes):", data->address_size);
+    //printf("   %-30s %u\n", "Segment Selector (bytes):", data->segment_selector_size);
+    //printf("   %-30s %u\n", "Minimun Instruction Length:", data->min_instruction_length);
+    //printf("   %-30s %u\n", "Maximum Ops per Instruction:", data->max_ops_per_instruction);
+    //printf("   %-30s %u\n", "Initial values of 'is_stmt':", data->default_is_smt);
+    //printf("   %-30s %d\n", "Line Base:", data->line_base);
+    //printf("   %-30s %u\n", "Line Range:", data->line_range);
+    //printf("   %-30s %u\n", "Opcode Base:", data->opcode_base);
 
     ptr1 += sizeof(DebugLineHeader);
-    uint8_t *std_opcode_len = (uint8_t *) ptr1;
+    //uint8_t *std_opcode_len = (uint8_t *) ptr1;
     // directory entry format count
     ptr1 = ptr1 + (data->opcode_base -1);
     uint8_t *dir_ent_fmt_count = ptr1;
@@ -97,11 +97,11 @@ int dump_dl(const char *filepath, Matrix *m) {
     puts(" Opcodes");
 
     for(int k = 0; k < data->opcode_base - 1; k++) {
-        printf("   Opcode %d has %u args\n", k+1, std_opcode_len[k]);
+        //printf("   Opcode %d has %u args\n", k+1, std_opcode_len[k]);
     }
 
 
-    printf("   %-30s %u\n", "Directory entry Format:", *dir_ent_fmt_count);
+    //printf("   %-30s %u\n", "Directory entry Format:", *dir_ent_fmt_count);
 
     uint64_t *dct_arr = calloc(*dir_ent_fmt_count, sizeof(uint64_t));
     uint64_t *dfc_arr = calloc(*dir_ent_fmt_count, sizeof(uint64_t));
@@ -114,12 +114,12 @@ int dump_dl(const char *filepath, Matrix *m) {
     for (int i = 0; i < *dir_ent_fmt_count; i++) {
         dct_arr[i] = decode_uleb128(&ptr1);
         dfc_arr[i] = decode_uleb128(&ptr1);
-        printf("   %lx  %lx\n", dct_arr[i], dfc_arr[i]);
+        //printf("   %lx  %lx\n", dct_arr[i], dfc_arr[i]);
 
     }
 
     uint64_t dc = decode_uleb128(&ptr1);
-    printf("Directory count: %ld\n", dc); 
+    //printf("Directory count: %ld\n", dc); 
 
 
     // now we find the debug_line_str section addr
@@ -129,7 +129,7 @@ int dump_dl(const char *filepath, Matrix *m) {
         exit(-1);
     }
     
-    uint8_t * db_lstr = (uint8_t *)((uintptr_t)elf_bytes + (uintptr_t)sh->sh_offset);
+    //uint8_t * db_lstr = (uint8_t *)((uintptr_t)elf_bytes + (uintptr_t)sh->sh_offset);
     //uint8_t * ptr1 = directories;
 
 
@@ -137,31 +137,32 @@ int dump_dl(const char *filepath, Matrix *m) {
         for (int i = 0; i < *dir_ent_fmt_count; i++) {
             switch (dct_arr[i]) {
                 case DW_LNCT_path:
-                    //printf("Content code is DW_LNCT_path\n");
+                    ////printf("Content code is DW_LNCT_path\n");
                     // can only be paired with
                     switch (dfc_arr[i]) {
                         case DW_FORM_line_strp:
-                            //printf("Form code is DW_FORM_line_strp\n");
+                            ////printf("Form code is DW_FORM_line_strp\n");
 
                             uint32_t offset;
                             memcpy(&offset, ptr1, sizeof(uint32_t));
                             ptr1 +=4;
 
-                            char *name = (char *)(db_lstr + offset);
-                            printf("  offset=0x%x -> \"%s\"\n", offset, name);
+                            //char *name = (char *)(db_lstr + offset);
+                            //printf("  offset=0x%x -> \"%s\"\n", offset, name);
                             break;
                         default:    // TODO:
                             break;
                     }
                     break;
                 case DW_LNCT_directory_index:
-                    printf("Content code is DW_LNCT_directory_index\n");
+                    //printf("Content code is DW_LNCT_directory_index\n");
                     // can only be paired with
                     switch (dfc_arr[i]) {
                         case DW_FORM_udata:
-                            //printf("Form code is DW_FORM_udata\n");
-                            uint64_t dir_index = decode_uleb128(&ptr1);
-                            printf("Dir Index = %ld\n", dir_index);
+                            ////printf("Form code is DW_FORM_udata\n");
+                            //uint64_t dir_index = decode_uleb128(&ptr1);
+                            decode_uleb128(&ptr1);
+                            //printf("Dir Index = %ld\n", dir_index);
                             //ptr1+=1;
                             break;
                         case DW_FORM_data1: // TODO
@@ -182,7 +183,7 @@ int dump_dl(const char *filepath, Matrix *m) {
 
     // file name entry format count
     uint8_t *file_name_entry_fmt_count = ptr1;
-    printf("File Name Entry Format Count: %d\n", *file_name_entry_fmt_count);
+    //printf("File Name Entry Format Count: %d\n", *file_name_entry_fmt_count);
 
     // file name entry format
     ptr1++;
@@ -200,29 +201,29 @@ int dump_dl(const char *filepath, Matrix *m) {
     for (int i = 0; i < *file_name_entry_fmt_count; i++) {
         ct_arr[i] = decode_uleb128(&ptr1);
         fc_arr[i] = decode_uleb128(&ptr1);
-        printf("   %lx  %lx\n", ct_arr[i], fc_arr[i]);
+        //printf("   %lx  %lx\n", ct_arr[i], fc_arr[i]);
     }
 
     // file names count
     uint64_t fn_c = decode_uleb128(&ptr1); 
     
-    printf("File Name Count: %ld\n", fn_c);
+    //printf("File Name Count: %ld\n", fn_c);
     for (uint64_t j = 0; j < fn_c; j++) {
         for (int i = 0; i < *file_name_entry_fmt_count; i++) {
             switch (ct_arr[i]) {
                 case DW_LNCT_path:
-                    printf("Content code is DW_LNCT_path\n");
+                    //printf("Content code is DW_LNCT_path\n");
                     // can only be paired with
                     switch (fc_arr[i]) {
                         case DW_FORM_line_strp:
-                            printf("Form code is DW_FORM_line_strp\n");
+                            //printf("Form code is DW_FORM_line_strp\n");
 
                             uint32_t offset;
                             memcpy(&offset, ptr1, sizeof(uint32_t));
                             ptr1 +=4;
 
-                            char *name = (char *)(db_lstr + offset);
-                            printf("  offset=0x%x -> \"%s\"\n", offset, name);
+                            //char *name = (char *)(db_lstr + offset);
+                            //printf("  offset=0x%x -> \"%s\"\n", offset, name);
                             break;
                         default:
                             puts("Invalid Content code");
@@ -231,20 +232,21 @@ int dump_dl(const char *filepath, Matrix *m) {
                     }
                     break;
                 case DW_LNCT_directory_index:
-                    printf("Content code is DW_LNCT_directory_index\n");
+                    //printf("Content code is DW_LNCT_directory_index\n");
                     // can only be paired with
                     switch (fc_arr[i]) {
                         case DW_FORM_udata:
-                            printf("Form code is DW_FORM_udata\n");
-                            uint64_t dir_index = decode_uleb128(&ptr1);
-                            printf("Dir Index = %ld\n", dir_index);
+                            //printf("Form code is DW_FORM_udata\n");
+                            //uint64_t dir_index = decode_uleb128(&ptr1);
+                            decode_uleb128(&ptr1);
+                            //printf("Dir Index = %ld\n", dir_index);
                             //ptr1+=1;
                             break;
                         case DW_FORM_data1:
-                            printf("Form code is DW_FORM_data1\n");
+                            //printf("Form code is DW_FORM_data1\n");
                             break;
                         case DW_FORM_data2:
-                            printf("Form code is DW_FORM_data2\n");
+                            //printf("Form code is DW_FORM_data2\n");
                             break;
                         default:
                             puts("Invalid Form code");
@@ -274,27 +276,28 @@ int dump_dl(const char *filepath, Matrix *m) {
 
     uint64_t line_offset = (uintptr_t)ptr1 - (uintptr_t)start;
 
-    printf("\n\n");
+    //printf("\n\n");
 
 
     while ((curr = ptr1++)) {
-        printf("0x%08lx: ", line_offset); 
+        //printf("0x%08lx: ", line_offset); 
         // special opcode ranges from 13 to 255
         // the lower bound may increase if one adds new standard opcodes. Thus,26
         // the opcode_base field of the line number program header gives the value of the first27
         // special opcode.
         if (*curr == 0x00) {
             // how many bytes ex opcode spans
-            int span = *ptr1++;
+            //int span = *ptr1++;
+            ptr1++;
 
-            printf("opcode spans %d bytes\n", span);
+            //printf("opcode spans %d bytes\n", span);
             uint8_t ex_opcode = *ptr1++;
             switch(ex_opcode) {
                 case DW_LNE_end_sequence: 
                     state_arr.end_sequence = true;
-                    //printf("Appending to row/ End sequence \n");
-                    printf("%x DW_LNE_end_sequence\n", *curr); 
-                    printf("            0x%016lx     %ld    %ld    %ld\n", state_arr.address, state_arr.line, state_arr.column, state_arr.file);
+                    ////printf("Appending to row/ End sequence \n");
+                    //printf("%x DW_LNE_end_sequence\n", *curr); 
+                    //printf("            0x%016lx     %ld    %ld    %ld\n", state_arr.address, state_arr.line, state_arr.column, state_arr.file);
 
                     add_row(m, state_arr);
                     free(ct_arr);
@@ -305,12 +308,12 @@ int dump_dl(const char *filepath, Matrix *m) {
                     return 0;
                     break;
                 case DW_LNE_set_address:
-                    //printf("Setting address\n");
+                    ////printf("Setting address\n");
                     //uint64_t *addy = (uint64_t *)ptr1;
                     uint64_t addy;
                     memcpy(&addy, ptr1, sizeof(uint64_t));
                     ptr1+=sizeof(addy);
-                    printf("%x DW_LNS_set_address (0x%016lx)\n",DW_LNE_set_address, addy);
+                    //printf("%x DW_LNS_set_address (0x%016lx)\n",DW_LNE_set_address, addy);
                     line_offset = line_offset + (ptr1 - curr);
                     state_arr.address = addy;
                     state_arr.op_index = 0;
@@ -318,7 +321,7 @@ int dump_dl(const char *filepath, Matrix *m) {
                 case DW_LNE_set_discriminator:
                     l_operand = decode_uleb128(&ptr1);
                     state_arr.discriminator = l_operand;
-                    printf("%x DW_LNE_set_discriminator (%ld)\n", *curr, l_operand);
+                    //printf("%x DW_LNE_set_discriminator (%ld)\n", *curr, l_operand);
                     line_offset = line_offset + (ptr1 - curr);
                     break;                    
                 default:
@@ -333,18 +336,18 @@ int dump_dl(const char *filepath, Matrix *m) {
             switch(*curr) {
                 case DW_LNS_set_column:
 
-                    //printf("DW_LNS_set_column: %d\n", *curr);
+                    ////printf("DW_LNS_set_column: %d\n", *curr);
                     uint64_t col_val = decode_uleb128(&ptr1);
-                    //printf("Checking: %d\n", col_val);
+                    ////printf("Checking: %d\n", col_val);
                     line_offset = line_offset + (ptr1 - curr);
                     state_arr.column = col_val;
-                    printf("%x DW_LNS_SET_column (%ld)\n", DW_LNS_set_column, col_val);
+                    //printf("%x DW_LNS_SET_column (%ld)\n", DW_LNS_set_column, col_val);
 
                     break;
                 case DW_LNS_copy:
-                    printf("DW_LNS_copy: %d\n", *curr);
+                    //printf("DW_LNS_copy: %d\n", *curr);
 
-                    printf("            0x%016lx     %ld    %ld    %ld\n", state_arr.address, state_arr.line, state_arr.column, state_arr.file);
+                    //printf("            0x%016lx     %ld    %ld    %ld\n", state_arr.address, state_arr.line, state_arr.column, state_arr.file);
 
                     line_offset = line_offset + (ptr1 - curr);
 
@@ -366,7 +369,7 @@ int dump_dl(const char *filepath, Matrix *m) {
                             data->max_ops_per_instruction);
                     line_offset = line_offset + (ptr1 - curr);
 
-                    printf("%x DW_LNS_advance_pc  (addr += %ld, op-index += 0)\n", *curr, address_inc );
+                    //printf("%x DW_LNS_advance_pc  (addr += %ld, op-index += 0)\n", *curr, address_inc );
                     state_arr.op_index = (state_arr.op_index + op_advance) % data->max_ops_per_instruction;
 
                     state_arr.address += address_inc;
@@ -377,21 +380,21 @@ int dump_dl(const char *filepath, Matrix *m) {
                     s_operand = decode_sleb128(&ptr1);                    
                     state_arr.line += s_operand;
                     line_offset = line_offset + (ptr1 - curr);
-                    printf("%x DW_LNS_advance_line %ld\n", *curr, s_operand);
+                    //printf("%x DW_LNS_advance_line %ld\n", *curr, s_operand);
                     break;
                 case DW_LNS_set_file:
                     l_operand = decode_uleb128(&ptr1);
                     state_arr.file = l_operand;
-                    printf("%x DW_LNS_set_file %ld\n", *curr, l_operand);
+                    //printf("%x DW_LNS_set_file %ld\n", *curr, l_operand);
                     line_offset = line_offset + (ptr1 - curr);
                     break;
                 case DW_LNS_negate_stmt:
-                    printf("%x DW_LNS_negate_stmt\n", *curr);
+                    //printf("%x DW_LNS_negate_stmt\n", *curr);
                     state_arr.is_stmt = !state_arr.is_stmt;
                     line_offset = line_offset + (ptr1 - curr);
                     break;
                 case DW_LNS_set_basic_block:
-                    printf("%x DW_LNS_set_basic_block \n", *curr);
+                    //printf("%x DW_LNS_set_basic_block \n", *curr);
                     state_arr.basic_block = true;
                     line_offset = line_offset + (ptr1 - curr);
                     break;
@@ -406,7 +409,7 @@ int dump_dl(const char *filepath, Matrix *m) {
 
                     state_arr.op_index = (state_arr.op_index + op_advance) % data->max_ops_per_instruction;
 
-                    printf("%x DW_LNS_const_add_pc (addr += 0x%016lx, op-index += 0)\n", *curr, address_inc);
+                    //printf("%x DW_LNS_const_add_pc (addr += 0x%016lx, op-index += 0)\n", *curr, address_inc);
                     line_offset = line_offset + (ptr1 - curr);
                     state_arr.address += address_inc;
 
@@ -415,24 +418,24 @@ int dump_dl(const char *filepath, Matrix *m) {
                     l_operand = *(uint16_t *)ptr1; 
                     state_arr.address = state_arr.address + l_operand;
                     state_arr.op_index = 0;
-                    printf("%x DW_LNS_fixed_advance_pc %ld\n", *curr, l_operand);
+                    //printf("%x DW_LNS_fixed_advance_pc %ld\n", *curr, l_operand);
                     ptr1+=sizeof(l_operand);
                     line_offset = line_offset + (ptr1 - curr);
                     break;
                 case DW_LNS_set_prologue_end:
-                    printf("%x DW_LNS_fixed_advance_pc \n", *curr);
+                    //printf("%x DW_LNS_fixed_advance_pc \n", *curr);
                     state_arr.prologue_end = true;
                     line_offset = line_offset + (ptr1 - curr);
                     break; 
                 case DW_LNS_set_epilogue_begin:
-                    printf("%x DW_LNS_epilogue_begin \n", *curr);
+                    //printf("%x DW_LNS_epilogue_begin \n", *curr);
                     state_arr.isa = true;
                     line_offset = line_offset + (ptr1 - curr);
                     break;
                 case DW_LNS_set_isa:
                     l_operand = decode_uleb128(&ptr1);
                     state_arr.isa = l_operand;
-                    printf("%x DW_LNS_set_isa %ld\n", *curr, l_operand);
+                    //printf("%x DW_LNS_set_isa %ld\n", *curr, l_operand);
                     line_offset = line_offset + (ptr1 - curr);
                     break;
                 default:
@@ -443,7 +446,7 @@ int dump_dl(const char *filepath, Matrix *m) {
 
 
         } else if (*curr >= data->opcode_base) { // special opcodes
-            //printf("Special Opcode Number: %d\n", *curr);
+            ////printf("Special Opcode Number: %d\n", *curr);
             // calculate adjusted opcode and operation advance
             adj_opcode = *curr - data->opcode_base;
             op_advance = adj_opcode / data->line_range; 
@@ -455,16 +458,16 @@ int dump_dl(const char *filepath, Matrix *m) {
 
             int line_inc = data->line_base + (adj_opcode % data->line_range);
 
-            //printf("Adjusted opcode: %d| Operation Advance: %d| Line Increment: %d|\n", adj_opcode, op_advance, line_inc);
-            //printf("New Address: 0x%lx += %d | New OpIndex: %d |\n", state_arr.address, address_inc, state_arr.op_index); 
+            ////printf("Adjusted opcode: %d| Operation Advance: %d| Line Increment: %d|\n", adj_opcode, op_advance, line_inc);
+            ////printf("New Address: 0x%lx += %d | New OpIndex: %d |\n", state_arr.address, address_inc, state_arr.op_index); 
             // add a signed integer to the line register
             state_arr.line = state_arr.line + line_inc;
             // modify the operation pointer by incrementing the address and op_index registers
             state_arr.address += address_inc;
             // append a row to the matrix using the current values of the state machine reg
-            printf("%x address += %ld, line += %d, op-index += 0\n", *curr, address_inc, line_inc);
+            //printf("%x address += %ld, line += %d, op-index += 0\n", *curr, address_inc, line_inc);
 
-            printf("            0x%016lx     %ld    %ld    %ld\n", state_arr.address, state_arr.line, state_arr.column, state_arr.file);
+            //printf("            0x%016lx     %ld    %ld    %ld\n", state_arr.address, state_arr.line, state_arr.column, state_arr.file);
               
             
             line_offset = line_offset + (ptr1 - curr);
@@ -566,10 +569,10 @@ Elf64_Shdr * get_section(Elf64_Shdr **shdr_array, uint16_t sh_num, const char * 
 
         if (strcmp(name, cmp) == 0) {
             /*
-            printf("%s section found\n", cmp);
-            printf("    Type: 0x%x\n", sh->sh_type);
-            printf("    Offset: 0x%lx\n", sh->sh_offset);
-            printf("    Size: 0x%lx\n", sh->sh_size);
+            //printf("%s section found\n", cmp);
+            //printf("    Type: 0x%x\n", sh->sh_type);
+            //printf("    Offset: 0x%lx\n", sh->sh_offset);
+            //printf("    Size: 0x%lx\n", sh->sh_size);
             */
             
             if (sh->sh_type == SHT_PROGBITS) {
