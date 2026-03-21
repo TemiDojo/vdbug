@@ -26,6 +26,7 @@
 #define BOLD    "\x1b[1m"
 #define DIM     "\x1b[2m"
 #define CYAN    "\x1b[96m"
+#define RED     "\x1b[31m"
 #define RESET   "\x1b[0m"
 
 #define MAX_BREAKPOINTS 16
@@ -57,7 +58,7 @@ static void err_check(void) {
         case EIO:    die("ptrace: EIO");
         case EPERM:  die("ptrace: EPERM");
         case ESRCH:  die("ptrace: ESRCH");
-        default:     die("ptrace: unknown error");
+        default:     return;
     }
 }
 
@@ -117,7 +118,7 @@ static void parse_stack(uintptr_t initial_rsp, uintptr_t end_rsp, uintptr_t rbp,
     unsigned long stack_start, stack_end;
     get_stack_range(pid, &stack_start, &stack_end);
 
-    while (current_slot >= end_rsp - 8) {
+    while (current_slot >= end_rsp) {
         if (current_slot < stack_start || current_slot >= stack_end) {
             break;
         }
@@ -125,22 +126,41 @@ static void parse_stack(uintptr_t initial_rsp, uintptr_t end_rsp, uintptr_t rbp,
         printf(BOX_SIDE "      0x%016" PRIx64 "      " BOX_SIDE "\n",
                stack_value);
 
-        if (current_slot != end_rsp - 8) {
-            if (current_slot == end_rsp && current_slot == rbp) {
-                printf(BOX_DIVIDER " ← rsp, rbp\n");
-
-            } else if (current_slot == end_rsp) {
-                printf(BOX_DIVIDER " ← rsp\n");
-            } else if (current_slot == rbp) {
+        if (current_slot != end_rsp) {
+            if (current_slot == rbp) {
                 printf(BOX_DIVIDER " ← rbp\n");
             } else {
                 printf(BOX_DIVIDER "\n");
             }
+        } else {
+            if (current_slot == end_rsp && current_slot == rbp) {
+                printf(BOX_DIVIDER " ← rsp, rbp\n");
+            } else {
+                printf(BOX_DIVIDER " ← rsp\n");
+            }
+
         }
         current_slot -= 8;
     }
-    // printf(BOX_BOTTOM " ← rsp\n");
-    printf(BOX_BOTTOM "\n");
+
+
+    // red zone
+    for (int i = 0; i < 16; i++) { 
+        uintptr_t target = current_slot - (i * 8);
+
+        errno = 0;
+        uint64_t val = ptrace(PTRACE_PEEKDATA, pid, (void *)target, NULL);
+
+        if (errno != 0) {
+            printf(RED BOX_SIDE "      [ UNMAPPED ]      " BOX_SIDE "\n");
+        } else {
+            printf(RED BOX_SIDE "      0x%016lx      " BOX_SIDE "\n", val);
+        }
+
+        if (i < 15) printf(BOX_DIVIDER "\n");
+    }
+    printf(BOX_BOTTOM RESET "\n");
+
 }
 
 static csh cs_open_or_die(void) {
@@ -564,6 +584,7 @@ int ptrace_init(const char *target_path, Matrix *m) {
                     running = false;
                     break;
                 default:
+                    printf("? : %c", line[0]);
                     puts("Error: unknown command");
             }
         } else {
