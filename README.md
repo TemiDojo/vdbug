@@ -1,4 +1,4 @@
-# ptracer
+# vdbug
 
 A Linux x86-64 debugger built with `ptrace`. It parses DWARF debug info to map instructions back to source lines, disassembles code around the current instruction pointer, and lets you step through a program interactively.
 
@@ -9,6 +9,7 @@ A Linux x86-64 debugger built with `ptrace`. It parses DWARF debug info to map i
 - Register display after each step
 - Disassembly window showing previous, current, and next instruction with source line mapping
 - Before/after memory display for write instructions
+- Live stack display showing current stack slots with rsp/rbp markers
 
 ## Requirements
 
