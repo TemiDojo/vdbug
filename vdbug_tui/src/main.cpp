@@ -12,6 +12,14 @@
 #include "ftxui/component/component.hpp"          // for Menu
 #include "ftxui/component/component_options.hpp"  // for MenuOption
 #include "inc/ui.hh"
+#include "inc/helpers.hh"
+#include "inc/d_state.hh"
+#include "inc/padding.hh"
+#include <sys/ptrace.h>
+#include <sys/user.h>
+#include <thread>
+
+using namespace ftxui;
 
 int main() {
     using namespace ftxui;
@@ -90,7 +98,17 @@ int main() {
     return 0;
 }
 
-ftxui::Element UserInterface::render_registers() {
+ftxui::Element UserInterface::render_registers(DebuggerState *dstate) {
 
+    Elements elements;
+
+    Elements current_line;
+    auto value = helpers::to_wstring(helpers::zero_extend(helpers::to_hex(dstate->regs.rax, ""), 16));
+    current_line.push_back(
+            hbox(text("rax") | align_right | size(WIDTH, EQUAL, 5),
+            text(value) | color(Color::GrayDark)) | padding(1) | notflex 
+    );
+
+    return vbox(std::move(elements)) | border;
 
 }
