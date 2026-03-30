@@ -1,4 +1,4 @@
-#include "inc/padding.hh"
+#include "../inc/padding.hh"
 
 padding::padding(int t, int r, int b, int l): top(t), right(r), bottom(b), left(l) {}
 padding::padding(int v, int h): top(v), bottom(v), right(h), left(h) {}

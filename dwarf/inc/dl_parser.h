@@ -1,3 +1,4 @@
+#pragma once
 #include <stdio.h>
 #include <elf.h>
 #include <stdlib.h>
@@ -6,7 +7,6 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdbool.h>
-
 
 
 typedef struct __attribute__((packed)) {

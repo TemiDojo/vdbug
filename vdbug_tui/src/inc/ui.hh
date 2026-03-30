@@ -16,9 +16,14 @@
 class UserInterface {
 
     private:
+        std::shared_ptr<DebuggerState> state;
         ftxui::Element render_stack();
-        ftxui::Element render_registers(DebuggerState *dstate);
+        ftxui::Element render_registers();
         ftxui::Element render_instructions();
+        void render();
+    public:
+        UserInterface(std::shared_ptr<DebuggerState> s);
+        void start();
 
 
 };

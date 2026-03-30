@@ -1,6 +1,6 @@
 #include <sys/ptrace.h>
 #include <sys/uio.h>
-#include "dwarf/dl_parser.h"
+#include "dwarf/inc/dl_parser.h"
 
 static void parse_stack(uintptr_t initial_rsp, uintptr_t end_rsp, uintptr_t rbp, pid_t pid);
 static void print_regs(struct user_regs_struct regs);
